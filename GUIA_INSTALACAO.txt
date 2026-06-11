@@ -1,0 +1,89 @@
+═══════════════════════════════════════════════════════════
+⚛ NÚCLEO CRÉDITO — GUIA DE INSTALAÇÃO COMPLETO
+═══════════════════════════════════════════════════════════
+
+PASSO 1 — CRIAR AS TABELAS NO SUPABASE
+────────────────────────────────────────
+1. Acessa: supabase.com/dashboard
+2. Clica no projeto: nucleo-credito
+3. Menu lateral → "SQL Editor"
+4. Cola o conteúdo do arquivo: supabase_schema.sql
+5. Clica "Run"
+6. Confirma que aparece "Success"
+
+PASSO 2 — CONFIGURAR OS SECRETS NO STREAMLIT CLOUD
+────────────────────────────────────────────────────
+1. Acessa: share.streamlit.io
+2. Clica no seu app nucleo-credito
+3. Clica nos 3 pontinhos "⋮" → Settings
+4. Aba "Secrets"
+5. Cola exatamente isso:
+
+SUPABASE_URL = "https://vvroaokekxbttapefspw.supabase.co"
+SUPABASE_KEY = "sb_publishable_OnL6QmmZGnIAGh5IB5TFXQ_tsVn_qK4"
+BREVO_API_KEY = "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"
+SENDER_EMAIL = "nucleocastelo.credito@gmail.com"
+SENDER_NAME = "Núcleo Crédito"
+
+6. Clica "Save"
+
+PASSO 3 — ATUALIZAR OS ARQUIVOS NO GITHUB
+────────────────────────────────────────────
+No PowerShell em C:\Users\eduar\NucleoCredito:
+
+Copie os arquivos novos para a pasta:
+- nucleo_credito_app.py (substitui o anterior)
+- requirements.txt (substitui o anterior)
+- supabase_schema.sql (novo)
+- .gitignore (novo)
+NÃO copie a pasta .streamlit (fica só local)
+
+Depois execute:
+git add .
+git commit -m "sistema completo com supabase e brevo"
+git push
+
+PASSO 4 — AGUARDAR O DEPLOY
+────────────────────────────
+O Streamlit Cloud vai detectar o push automaticamente
+e fazer o redeploy em 2-3 minutos.
+
+PASSO 5 — TESTAR
+─────────────────
+Acessa a URL do sistema e verifica:
+□ Login funciona (usuário: eduardo / senha: nucleo2026)
+□ Dashboard carrega sem erro
+□ Aba Clientes → cadastra um cliente teste
+□ Simulador calcula corretamente
+□ Alertas aparecem
+
+═══════════════════════════════════════════════════════════
+MÓDULOS DO SISTEMA
+═══════════════════════════════════════════════════════════
+
+📊 Dashboard      → 8 KPIs + 4 gráficos + pagamentos INSS
+👥 Clientes       → Cadastro seguro + histórico + follow-up + email
+📋 Leads          → Kanban visual com 4 colunas
+📄 Contratos      → Carteira + comissões automáticas
+🧮 Simulador      → Crédito + portabilidade comparativa
+🔔 Alertas        → Score de propensão + radar INSS
+📅 Agenda         → Follow-ups vencidos/hoje/próximos
+📧 Email Marketing → Brevo: calendário INSS + dicas + campanha livre
+🎯 Metas          → Progresso + ritmo necessário
+
+═══════════════════════════════════════════════════════════
+CREDENCIAIS DE ACESSO
+═══════════════════════════════════════════════════════════
+
+Usuário: eduardo
+Senha:   nucleo2026
+
+Para trocar a senha: edite a linha no arquivo:
+hashlib.sha256(b"nucleo2026").hexdigest()
+Substitua "nucleo2026" pela nova senha.
+
+═══════════════════════════════════════════════════════════
+SUPORTE
+═══════════════════════════════════════════════════════════
+Eduardo Lima de Sousa
+WhatsApp: (11) 95272-3015
