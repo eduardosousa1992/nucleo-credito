@@ -1,0 +1,81 @@
+# ⚛ Núcleo Crédito — Sistema de Gestão
+## No centro da sua vida financeira.
+
+---
+
+## INSTALAÇÃO — 3 comandos no terminal
+
+### 1. Abra o terminal (CMD ou PowerShell) e navegue até a pasta do arquivo:
+```
+cd C:\Users\SeuUsuario\Downloads
+```
+
+### 2. Instale as dependências:
+```
+pip install streamlit pandas plotly
+```
+
+### 3. Execute o sistema:
+```
+streamlit run nucleo_credito_app.py
+```
+
+O sistema abre automaticamente no navegador em:
+**http://localhost:8501**
+
+---
+
+## O QUE O SISTEMA FAZ
+
+### 📊 Dashboard
+- 5 KPIs em tempo real
+- Gráfico de margem disponível por cliente
+- Gráfico de leads por canal
+- Pizza de status dos leads
+- Barra de comprometimento de margem
+
+### 👥 Clientes
+- Cadastro completo de clientes
+- Filtros por status e canal
+- Barra de progresso de margem comprometida
+- Badge de oportunidade automático
+- Remover clientes
+
+### 📋 Leads
+- Pipeline visual por status
+- Atualizar status com um clique
+- Registrar novos leads
+
+### 📄 Contratos
+- Registrar contratos por cliente
+- Cálculo automático de parcela e comissão
+- Total em carteira
+
+### 🧮 Simulador
+- Calcula margem disponível
+- Simula qualquer valor e prazo
+- Gráfico comparativo de todos os prazos
+- Verde = cabe na margem / Vermelho = não cabe
+
+### 🔔 Alertas
+- Lista automática de quem contatar esta semana
+- Prioridade máxima para margem > R$600
+- Lista de portabilidade para margem esgotada
+
+---
+
+## BANCO DE DADOS
+
+O sistema cria automaticamente o arquivo **nucleo_credito.db**
+na mesma pasta. Esse arquivo contém todos os seus dados.
+
+**Fazer backup:** copie o arquivo nucleo_credito.db regularmente.
+
+**Dados fictícios:** 5 clientes de teste já vêm cadastrados.
+Para remover, use o botão "Remover" na aba Clientes.
+
+---
+
+## SUPORTE
+Eduardo Lima de Sousa
+WhatsApp: (11) 95272-3015
