@@ -35,7 +35,9 @@ st.markdown(f"""
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
 * {{ font-family: 'Montserrat', sans-serif !important; }}
 .main {{ background: #F0F4F8; padding-top: 10px !important; }}
-header[data-testid="stHeader"] {{ display: none !important; }}
+
+/* Liberação dos elementos nativos da Sidebar para funcionamento do Drawer */
+header[data-testid="stHeader"] {{ background: transparent !important; }}
 footer {{ display: none !important; }}
 #MainMenu {{ display: none !important; }}
 
@@ -43,28 +45,37 @@ footer {{ display: none !important; }}
 [data-testid="stSidebar"] {{
     background: linear-gradient(180deg, {NAVY} 0%, #0F2347 100%) !important;
     box-shadow: 4px 0 15px rgba(0,0,0,0.15) !important;
+    transition: all 0.3s ease-in-out !important;
 }}
 [data-testid="stSidebar"] * {{ color: white !important; }}
+
+/* Alinhamento do botão nativo de fechar/abrir (Seta/Hambúrguer) para não sumir */
+[data-testid="collapsedControl"] button {{
+    color: {NAVY} !important;
+    background-color: white !important;
+    border-radius: 50% !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+}}
 
 /* Customização dos botões de menu dentro da Sidebar */
 div.sidebar-nav-container button {{
     background: transparent !important;
     border: none !important;
-    color: rgba(255,255,255,0.75) !important;
-    font-size: 14px !important;
+    color: rgba(255,255,255,0.7) !important;
+    font-size: 13px !important;
     font-weight: 600 !important;
-    padding: 12px 16px !important;
+    padding: 10px 14px !important;
     border-radius: 8px !important;
     text-align: left !important;
     justify-content: flex-start !important;
     width: 100% !important;
-    transition: all .2s !important;
-    margin-bottom: 4px !important;
+    transition: all .2s ease !important;
+    margin-bottom: 3px !important;
 }}
 div.sidebar-nav-container button:hover {{
-    background: rgba(255,255,255,0.1) !important;
+    background: rgba(255,255,255,0.08) !important;
     color: white !important;
-    padding-left: 22px !important;
+    padding-left: 18px !important;
 }}
 
 /* Estado Ativo do Menu Selecionado */
@@ -72,7 +83,7 @@ div.sidebar-nav-container button:hover {{
     background: {GREEN} !important;
     color: white !important;
     font-weight: 700 !important;
-    box-shadow: 0 4px 12px rgba(26,122,94,0.3) !important;
+    box-shadow: 0 4px 12px rgba(26,122,94,0.25) !important;
 }}
 
 /* Força o isolamento dos blocos de expander nativos e limpa textos fantasmas (arrow_down) */
@@ -84,7 +95,7 @@ div[data-testid="stExpander"] {{
   margin-bottom: 12px !important;
 }}
 
-/* Esconde o texto descritivo nativo 'arrow_down' que o Streamlit injeta por acessibilidade */
+/* Oculta estritamente a acessibilidade de texto clonado do expander */
 div[data-testid="stExpander"] summary text,
 div[data-testid="stExpander"] summary svg + span::before {{
   display: none !important;
@@ -92,9 +103,9 @@ div[data-testid="stExpander"] summary svg + span::before {{
   color: transparent !important;
 }}
 
-/* Garante a formatação limpa do título interno do expander */
+/* Formatação limpa do título interno do expander */
 div[data-testid="stExpander"] summary span p {{
-  font-size: 14px !important;
+  font-size: 13px !important;
   font-weight: 700 !important;
   color: {NAVY} !important;
   margin: 0 !important;
