@@ -28,13 +28,16 @@ WHITE  = "#FFFFFF"
 LIGHT  = "#F0F4F8"
 
 # ══════════════════════════════════════════════════════════════════════════
-# INJEÇÃO DE CSS PREMIUM (Otimizado para o Layout de Menu Lateral)
+# INJEÇÃO DE CSS PREMIUM (Otimizado para Menu Lateral e Blindagem de Expanders)
 # ══════════════════════════════════════════════════════════════════════════
 st.markdown(f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght=300;400;500;600;700;800&display=swap');
 * {{ font-family: 'Montserrat', sans-serif !important; }}
-.main {{ background: #F0F4F8; padding-top: 20px !important; }}
+.main {{ background: #F0F4F8; padding-top: 10px !important; }}
+header[data-testid="stHeader"] {{ display: none !important; }}
+footer {{ display: none !important; }}
+#MainMenu {{ display: none !important; }}
 
 /* Customização Estilizada da Barra Lateral (Sidebar Premium) */
 [data-testid="stSidebar"] {{
@@ -50,7 +53,7 @@ div.sidebar-nav-container button {{
     color: rgba(255,255,255,0.75) !important;
     font-size: 14px !important;
     font-weight: 600 !important;
-    padding: 10px 16px !important;
+    padding: 12px 16px !important;
     border-radius: 8px !important;
     text-align: left !important;
     justify-content: flex-start !important;
@@ -70,6 +73,31 @@ div.sidebar-nav-container button:hover {{
     color: white !important;
     font-weight: 700 !important;
     box-shadow: 0 4px 12px rgba(26,122,94,0.3) !important;
+}}
+
+/* Força o isolamento dos blocos de expander nativos e limpa textos fantasmas (arrow_down) */
+div[data-testid="stExpander"] {{
+  background-color: white !important;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04) !important;
+  border: 1px solid #E2E8F0 !important;
+  margin-bottom: 12px !important;
+}}
+
+/* Esconde o texto descritivo nativo 'arrow_down' que o Streamlit injeta por acessibilidade */
+div[data-testid="stExpander"] summary text,
+div[data-testid="stExpander"] summary svg + span::before {{
+  display: none !important;
+  font-size: 0 !important;
+  color: transparent !important;
+}}
+
+/* Garante a formatação limpa do título interno do expander */
+div[data-testid="stExpander"] summary span p {{
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: {NAVY} !important;
+  margin: 0 !important;
 }}
 
 .page-header {{ background: white; border-radius: 14px; padding: 18px 24px; margin-bottom: 18px; border-left: 4px solid {GREEN}; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }}
@@ -337,12 +365,11 @@ if not st.session_state.logged_in:
     st.stop()
 
 # ══════════════════════════════════════════════════════════════════════════
-# ARQUITETURA DO MENU LATERAL ESTRUTURADO (Retrátil Nativo)
+# ARQUITETURA DO MENU LATERAL PREMIUM (Drawer Estilizado Nativo)
 # ══════════════════════════════════════════════════════════════════════════
 PAGES=["Dashboard","Clientes","Leads","Contratos","Simulador","Alertas","Agenda","Email Marketing","Metas"]
 
 with st.sidebar:
-    # Cabeçalho interno do Menu Lateral
     st.markdown(f"""
     <div style="text-align:center; padding: 10px 0 20px 0;">
       <svg width="40" height="40" viewBox="0 0 64 64" fill="none">
@@ -357,11 +384,10 @@ with st.sidebar:
     <hr style="border-color: rgba(255,255,255,0.1); margin: 0 0 16px 0;">
     """, unsafe_allow_html=True)
 
-    # Injeção dos Botões de Navegação Verticais na Sidebar
+    # Injeção Assíncrona de Navegação via Sidebar Containers
     st.markdown('<div class="sidebar-nav-container">', unsafe_allow_html=True)
     for page_name in PAGES:
         is_selected = st.session_state.page == page_name
-        # Aplica uma classe de encapsulamento dinâmica para marcar o botão ativo via CSS
         container_class = "active-menu-btn" if is_selected else "normal-menu-btn"
         
         with st.container():
@@ -372,7 +398,7 @@ with st.sidebar:
             st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Bloco do Usuário Logado e Botão de Logout no rodapé do menu
+    # Rodapé de Governança e Controle de Sessão
     st.markdown("<div style='height: 40px;'></div>", unsafe_allow_html=True)
     hr_nome = st.session_state.uname.split()[0]
     st.markdown(f"""
@@ -388,14 +414,14 @@ with st.sidebar:
         
     st.caption(f"v2.5 Premium · {date.today().strftime('%d/%m/%Y')}")
 
-# Gerenciamento de navegação externa via parâmetros na Query URL
+# Sincronização via Query URL Params
 qp = st.query_params
 if "page" in qp and qp["page"] in PAGES:
     st.session_state.page = qp["page"]
 
 pg=st.session_state.page
 
-# Bloco Central da Interface Sem Margens Fantasmas
+# Bloco Central Limpo
 st.markdown('<div class="main-content">', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -620,7 +646,9 @@ elif pg=="Contratos":
                     tx2=st.number_input("Taxa (% a.m.)",min_value=0.5,max_value=5.0,value=1.8,step=0.1)
                     di=st.date_input("Data Início")
                 if st.form_submit_button("✅ Registrar",use_container_width=True):
-                    ins_ct({"cliente_id":cm[cs],"banco":bco],"valor":float(val),"parcelas_total":int(pt),"taxa_juros":float(tx2),"data_inicio":str(di)}); st.success("Contrato registrado!"); st.rerun()
+                    # CORREÇÃO SINTÁTICA EXPLICITA: Removido o colchete ']' incorreto que causava SyntaxError
+                    ins_ct({"cliente_id":cm[cs],"banco":bco,"valor":float(val),"parcelas_total":int(pt),"taxa_juros":float(tx2),"data_inicio":str(di)})
+                    st.success("Contrato registrado!"); st.rerun()
     if not dfc.empty:
         dfc["parcela"]=dfc.apply(lambda r: round(r["valor"]*(r["taxa_juros"]/100*(1+r["taxa_juros"]/100)**r["parcelas_total"])/((1+r["taxa_juros"]/100)**r["parcelas_total"]-1),2) if r["parcelas_total"]>0 else 0,axis=1)
         dfc["comissao"]=(dfc["valor"]*0.03).round(2)
@@ -808,7 +836,7 @@ elif pg=="Email Marketing":
                 else:
                     env3=0
                     for _,row in dce[dce["nome"].isin(sel3)].iterrows():
-                        html=f'<div style="font-family:sans-serif;max-width:500px;margin:0 auto"><div style="background:{NAVY};padding:20px;border-radius:10px 10px 0 0"><h2 style="color:white;margin:0">⚛ Núcleo Crédito</h2></div><div style="background:white;padding:24px"><p>Olá <b>{row["nome"].split()[0]}</b>!</p><h3 style="color:{NAVY}">{ct3}</h3><p style="color:#555">{cc3}</p><a href="https://wa.me/5511952723015" style="background:{GREEN};color:white;padding:10px 20px;border-radius:99px;text-decoration:none">💬 WhatsApp</a></div></div>'
+                        html=f'<div style="font-family:sans-serif;max-width:500px;margin:0 auto"><div style="background:{NAVY};padding:20px;border-radius:10px 10px 0 0"><h2 style="color:white;margin:0">⚛ Núcleo Crédito</h2></div><div style="background:white;padding:24px"><p>Olá <b>{row["nome"].split()[0]}</b>!</p><h3 style="color:{ct3}</h3><p style="color:#555">{cc3}</p><a href="https://wa.me/5511952723015" style="background:{GREEN};color:white;padding:10px 20px;border-radius:99px;text-decoration:none">💬 WhatsApp</a></div></div>'
                         if send_email(row["email"],row["nome"],ca3,html): env3+=1
                     st.success(f"✅ {env3} email(s) enviado(s)!")
 
@@ -831,7 +859,7 @@ elif pg=="Metas":
             <span style="font-size:12px;color:#888">{vf} / {mf} ({pct3}%)</span>
           </div>
           <div style="background:#F0F0F0;border-radius:99px;height:10px;overflow:hidden">
-            <div style="background:{cor2};width:{pct3}%;height:100%;border-radius:99px"></div>
+            <div style="background:{cor2};width:{pct3}%;height:100%;border-radius:99px}</div>
           </div>
           <div style="font-size:10px;color:{'#1A7A5E' if pct3>=100 else '#888'};margin-top:5px">{'🎉 Meta atingida!' if pct3>=100 else f'Faltam {mf if "R$" in lbl else str(int(meta-atual))} para a meta'}</div>
         </div>""",unsafe_allow_html=True)
