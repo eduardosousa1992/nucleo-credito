@@ -11,7 +11,7 @@ import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 
 # ══════════════════════════════════════════════════════════════════════════
-# CONFIGURAÇÃO CORE DA PÁGINA (Sidebar visível e responsiva)
+# CONFIGURAÇÃO CORE DA PÁGINA (Sidebar visível e expansível)
 # ══════════════════════════════════════════════════════════════════════════
 st.set_page_config(
     page_title="Refinanciamento & Portabilidade",
@@ -28,11 +28,11 @@ WHITE  = "#FFFFFF"
 LIGHT  = "#F0F4F8"
 
 # ══════════════════════════════════════════════════════════════════════════
-# INJEÇÃO DE CSS PREMIUM (Otimizado para Menu Lateral e Blindagem de Expanders)
+# INJEÇÃO DE CSS PREMIUM (Otimizado para Menu Lateral Drawer)
 # ══════════════════════════════════════════════════════════════════════════
 st.markdown(f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght=300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
 * {{ font-family: 'Montserrat', sans-serif !important; }}
 .main {{ background: #F0F4F8; padding-top: 10px !important; }}
 header[data-testid="stHeader"] {{ display: none !important; }}
@@ -320,8 +320,9 @@ def chk(u,p):
 # ── HELPERS ─────────────────────────────────────────────────────────────────
 def fmt(v): return f"R$ {abs(v):,.2f}".replace(",","X").replace(".",",").replace("X",".")
 def kpi(l,v,s="",c="g"):
-    cc={"n":"n","r":"r","y":"y"}.get(c,"")
-    return f'<div class="kpi {cc}"><div class="kpi-lbl">{l}</div><div class="kpi-val">{v}</div>{"<div class=kpi-sub>"+s+"</div>" if s else ""}</div>'
+    cc={"n":"n","r":"r","y":"y"}
+    style_color = cc.get(c,"")
+    return f'<div class="kpi {style_color}"><div class="kpi-lbl">{l}</div><div class="kpi-val">{v}</div>{"<div class=kpi-sub>"+s+"</div>" if s else ""}</div>'
 def badge(t,c):
     cl={"g":"bg","y":"by","r":"br","b":"bb","n":"bn"}.get(c,"bb")
     return f'<span class="badge {cl}">{t}</span>'
@@ -504,7 +505,7 @@ if pg=="Dashboard":
             for _,r in urg.iterrows():
                 cor=RED if r["dias"]<=1 else YELLOW if r["dias"]<=3 else GREEN
                 st.markdown(f"""<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #F5F5F5">
-                  <div><span style="font-weight:700;color:{NAVY};font-size:13px">{r['nome'].split()[0]} {r['nome'].split()[1] if len(r['nome'].split())>1 else ''}</span>
+                  <div><span style="font-weight:700;color:{NAVY};font-size:13px">{r['nome'].split()[0]} {r['nome'].split()[1] if len(r['nome'].split()) > 1 else ''}</span>
                   <span style="font-size:11px;color:#888;margin-left:8px">{r['tel_d']}</span></div>
                   <div style="text-align:right"><span style="font-weight:700;color:{cor};font-size:14px">{r['prox'].strftime('%d/%m') if r['prox'] else ''}</span>
                   <span style="font-size:10px;color:#aaa;margin-left:6px">em {r['dias']} dia(s)</span></div>
@@ -646,7 +647,6 @@ elif pg=="Contratos":
                     tx2=st.number_input("Taxa (% a.m.)",min_value=0.5,max_value=5.0,value=1.8,step=0.1)
                     di=st.date_input("Data Início")
                 if st.form_submit_button("✅ Registrar",use_container_width=True):
-                    # CORREÇÃO SINTÁTICA EXPLICITA: Removido o colchete ']' incorreto que causava SyntaxError
                     ins_ct({"cliente_id":cm[cs],"banco":bco,"valor":float(val),"parcelas_total":int(pt),"taxa_juros":float(tx2),"data_inicio":str(di)})
                     st.success("Contrato registrado!"); st.rerun()
     if not dfc.empty:
@@ -744,7 +744,7 @@ elif pg=="Alertas":
     c1,c2,c3,c4=st.columns(4)
     with c1: st.markdown(kpi("Prioridade Alta",len(opp),"margem>R$300","g"),unsafe_allow_html=True)
     with c2: st.markdown(kpi("Atenção",len(bx),"margem baixa","y"),unsafe_allow_html=True)
-    with c3: st.markdown(kpi("Sem Margem",len(sm),"portabilidade","r"),unsafe_allow_html=True)
+    with c3: st.markdown(kpi("Sem Margem",len(sm),"portabilidade", "r"),unsafe_allow_html=True)
     with c4: st.markdown(kpi("INSS Hoje/Amanhã",len(ph),"urgente","y" if len(ph)>0 else "n"),unsafe_allow_html=True)
     st.markdown("<div style='height:14px'></div>",unsafe_allow_html=True)
     if len(ph)>0:
@@ -797,9 +797,9 @@ elif pg=="Email Marketing":
     df=load_clientes()
     dce=df[df["email"].notna()&(df["email"]!="")] if not df.empty else pd.DataFrame()
     c1,c2,c3=st.columns(3)
-    with c1: st.markdown(kpi("Com Email",len(dce),"","n"),unsafe_allow_html=True)
-    with c2: st.markdown(kpi("Emails/dia","300","plano grátis","g"),unsafe_allow_html=True)
-    with c3: st.markdown(kpi("Custo","R$ 0,00","Brevo","g"),unsafe_allow_html=True)
+    with c1: st.markdown(kpi("Com Email",len(dce),"","n"), unsafe_allow_html=True)
+    with c2: st.markdown(kpi("Emails/dia","300","plano grátis","g"), unsafe_allow_html=True)
+    with c3: st.markdown(kpi("Custo","R$ 0,00","Brevo","g"), unsafe_allow_html=True)
     st.markdown("<div style='height:14px'></div>",unsafe_allow_html=True)
     t1,t2,t3=st.tabs(["📅 Calendário INSS","💡 Dica Financeira","📣 Campanha Livre"])
     with t1:
@@ -836,7 +836,7 @@ elif pg=="Email Marketing":
                 else:
                     env3=0
                     for _,row in dce[dce["nome"].isin(sel3)].iterrows():
-                        html=f'<div style="font-family:sans-serif;max-width:500px;margin:0 auto"><div style="background:{NAVY};padding:20px;border-radius:10px 10px 0 0"><h2 style="color:white;margin:0">⚛ Núcleo Crédito</h2></div><div style="background:white;padding:24px"><p>Olá <b>{row["nome"].split()[0]}</b>!</p><h3 style="color:{ct3}</h3><p style="color:#555">{cc3}</p><a href="https://wa.me/5511952723015" style="background:{GREEN};color:white;padding:10px 20px;border-radius:99px;text-decoration:none">💬 WhatsApp</a></div></div>'
+                        html=f'<div style="font-family:sans-serif;max-width:500px;margin:0 auto"><div style="background:{NAVY};padding:20px;border-radius:10px 10px 0 0"><h2 style="color:white;margin:0">⚛ Núcleo Crédito</h2></div><div style="background:white;padding:24px"><p>Olá <b>{row["nome"].split()[0]}</b>!</p><h3 style="color:{NAVY}">{ct3}</h3><p style="color:#555">{cc3}</p><a href="https://wa.me/5511952723015" style="background:{GREEN};color:white;padding:10px 20px;border-radius:99px;text-decoration:none">💬 WhatsApp</a></div></div>'
                         if send_email(row["email"],row["nome"],ca3,html): env3+=1
                     st.success(f"✅ {env3} email(s) enviado(s)!")
 
@@ -850,7 +850,7 @@ elif pg=="Metas":
     dfl2=load_leads(); dfc2=load_contratos()
     lm=len(dfl2); ctm=len(dfc2); com=dfc2["valor"].sum()*0.03 if not dfc2.empty else 0
     st.markdown("<div style='height:14px'></div>",unsafe_allow_html=True)
-    for lbl,atual,meta,cor2 in [("Contratos Fechados",ctm,mc2,GREEN),("Leads Gerados",lm,ml,NAVY),("Comissão (R$)",com,mcm,YELLOW)]:
+    for lbl,atual,meta,cor2 in [("Contratos Fechados",ctm,mc2,GREEN), ("Leads Gerados",lm,ml,NAVY), ("Comissão (R$)",com,mcm,YELLOW)]:
         pct3=min(100,round(atual/meta*100,1)) if meta>0 else 0
         vf=fmt(atual) if "R$" in lbl else str(int(atual)); mf=fmt(meta) if "R$" in lbl else str(int(meta))
         st.markdown(f"""<div style="background:white;border-radius:12px;padding:16px 18px;margin-bottom:10px;box-shadow:0 2px 6px rgba(0,0,0,0.05)">
@@ -859,9 +859,9 @@ elif pg=="Metas":
             <span style="font-size:12px;color:#888">{vf} / {mf} ({pct3}%)</span>
           </div>
           <div style="background:#F0F0F0;border-radius:99px;height:10px;overflow:hidden">
-            <div style="background:{cor2};width:{pct3}%;height:100%;border-radius:99px}</div>
+            <div style="background:{cor2};width:{pct3}%;height:100%;border-radius:99px;"></div>
           </div>
-          <div style="font-size:10px;color:{'#1A7A5E' if pct3>=100 else '#888'};margin-top:5px">{'🎉 Meta atingida!' if pct3>=100 else f'Faltam {mf if "R$" in lbl else str(int(meta-atual))} para a meta'}</div>
+          <div style="font-size:10px;color:{'#1A7A5E' if pct3>=100 else '#888'};margin-top:5px;">{'🎉 Meta atingida!' if pct3>=100 else f'Faltam {mf if "R$" in lbl else str(int(meta-atual))} para a meta'}</div>
         </div>""",unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
