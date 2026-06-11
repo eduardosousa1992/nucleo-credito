@@ -116,9 +116,9 @@ def get_secret(key, default=""):
     except:
         return os.environ.get(key, default)
 
-SUPABASE_URL  = get_secret("SUPABASE_URL",  "")
-SUPABASE_KEY  = get_secret("SUPABASE_KEY",  "")
-BREVO_API_KEY = get_secret("BREVO_API_KEY", "")
+SUPABASE_URL  = get_secret("SUPABASE_URL",  "https://vvroaokekxbttapefspw.supabase.co")
+SUPABASE_KEY  = get_secret("SUPABASE_KEY",  "sb_publishable_OnL6QmmZGnIAGh5IB5TFXQ_tsVn_qK4")
+BREVO_API_KEY = get_secret("BREVO_API_KEY", "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")
 SENDER_EMAIL  = get_secret("SENDER_EMAIL",  "nucleocastelo.credito@gmail.com")
 SENDER_NAME   = get_secret("SENDER_NAME",   "Núcleo Crédito")
 
@@ -442,8 +442,18 @@ def login_screen():
     with col2:
         st.markdown(f"""
         <div class="login-wrap">
-          <div style="font-size:52px">⚛</div>
-          <h2 style="color:{NAVY};font-size:22px;font-weight:800;margin:10px 0 4px">Núcleo Crédito</h2>
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom:4px">
+            <ellipse cx="32" cy="32" rx="28" ry="11" stroke="#1A7A5E" stroke-width="1.8" fill="none"/>
+            <ellipse cx="32" cy="32" rx="28" ry="11" stroke="#1A7A5E" stroke-width="1.8" fill="none" transform="rotate(60 32 32)"/>
+            <ellipse cx="32" cy="32" rx="28" ry="11" stroke="#1A7A5E" stroke-width="1.8" fill="none" transform="rotate(120 32 32)"/>
+            <circle cx="32" cy="32" r="5" fill="#1A7A5E"/>
+            <circle cx="32" cy="32" r="2" fill="white"/>
+            <circle cx="60" cy="32" r="2.5" fill="#1A7A5E"/>
+            <circle cx="4" cy="32" r="2.5" fill="#1A7A5E"/>
+            <circle cx="46" cy="9" r="2.5" fill="#1A7A5E"/>
+            <circle cx="18" cy="55" r="2.5" fill="#1A7A5E"/>
+          </svg>
+          <div style="font-size:24px;font-weight:800;color:{NAVY};letter-spacing:-0.5px;margin:4px 0 2px">Núcleo <span style="color:#1A7A5E">Crédito</span></div>
           <p style="color:#999;font-size:12px;font-style:italic;margin-bottom:28px">No centro da sua vida financeira.</p>
         </div>
         """, unsafe_allow_html=True)
@@ -498,12 +508,29 @@ if not st.session_state.logged_in:
 with st.sidebar:
     st.markdown(f"""
     <div class="nc-logo">
-      <div class="atom">⚛</div>
-      <h1>Núcleo Crédito</h1>
-      <p>No centro da sua vida financeira.</p>
+      <div style="position:relative;display:inline-block;margin-bottom:8px">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <ellipse cx="32" cy="32" rx="28" ry="11" stroke="#1A7A5E" stroke-width="1.8" fill="none" opacity="0.9"/>
+          <ellipse cx="32" cy="32" rx="28" ry="11" stroke="#1A7A5E" stroke-width="1.8" fill="none" opacity="0.9" transform="rotate(60 32 32)"/>
+          <ellipse cx="32" cy="32" rx="28" ry="11" stroke="#1A7A5E" stroke-width="1.8" fill="none" opacity="0.9" transform="rotate(120 32 32)"/>
+          <circle cx="32" cy="32" r="5" fill="#1A7A5E" opacity="0.95"/>
+          <circle cx="32" cy="32" r="2" fill="white"/>
+          <circle cx="60" cy="32" r="2.5" fill="#1A7A5E" opacity="0.8"/>
+          <circle cx="4" cy="32" r="2.5" fill="#1A7A5E" opacity="0.8"/>
+          <circle cx="46" cy="9" r="2.5" fill="#1A7A5E" opacity="0.8"/>
+          <circle cx="18" cy="55" r="2.5" fill="#1A7A5E" opacity="0.8"/>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </svg>
+      </div>
+      <div style="color:white;font-size:22px;font-weight:800;letter-spacing:-0.5px;line-height:1">Núcleo</div>
+      <div style="color:#1A7A5E;font-size:11px;font-weight:600;letter-spacing:0.35em;margin-top:1px">CRÉDITO</div>
+      <div style="color:rgba(255,255,255,0.4);font-size:10px;font-style:italic;margin-top:8px">No centro da sua vida financeira.</div>
     </div>""", unsafe_allow_html=True)
 
-    menu = st.radio("", [
+    menu = st.radio("Menu", [
         "📊  Dashboard",
         "👥  Clientes",
         "📋  Leads",
@@ -832,7 +859,7 @@ elif "Leads" in menu:
                       <div style="font-size:10px;color:#888;margin-top:2px">{row['canal']} · {row['interesse']}</div>
                       {f'<div style="font-size:12px;color:{GREEN};font-weight:600;margin-top:3px">{fmt(row["beneficio"])}</div>' if row["beneficio"] else ''}
                     </div>""", unsafe_allow_html=True)
-                    ns = st.selectbox("", STATUS, index=STATUS.index(s), key=f"ls_{row['id']}", label_visibility="collapsed")
+                    ns = st.selectbox("Status", STATUS, index=STATUS.index(s), key=f"ls_{row['id']}", label_visibility="collapsed")
                     if ns != s:
                         update_lead_status(row["id"], ns)
                         st.rerun()
