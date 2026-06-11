@@ -116,9 +116,9 @@ def get_secret(key, default=""):
     except:
         return os.environ.get(key, default)
 
-SUPABASE_URL  = get_secret("SUPABASE_URL",  "https://vvroaokekxbttapefspw.supabase.co")
-SUPABASE_KEY  = get_secret("SUPABASE_KEY",  "sb_publishable_OnL6QmmZGnIAGh5IB5TFXQ_tsVn_qK4")
-BREVO_API_KEY = get_secret("BREVO_API_KEY", "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")
+SUPABASE_URL  = get_secret("SUPABASE_URL",  "")
+SUPABASE_KEY  = get_secret("SUPABASE_KEY",  "")
+BREVO_API_KEY = get_secret("BREVO_API_KEY", "")
 SENDER_EMAIL  = get_secret("SENDER_EMAIL",  "nucleocastelo.credito@gmail.com")
 SENDER_NAME   = get_secret("SENDER_NAME",   "Núcleo Crédito")
 
