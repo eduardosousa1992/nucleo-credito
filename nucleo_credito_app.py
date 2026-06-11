@@ -17,7 +17,7 @@ st.set_page_config(
     page_title="Núcleo Crédito",
     page_icon="⚛",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 NAVY   = "#1B3A6B"
@@ -112,9 +112,12 @@ footer,#MainMenu,header {{ display:none !important; }}
 # ══════════════════════════════════════════════════════════════════════════
 def get_secret(key, default=""):
     try:
-        return st.secrets[key]
+        val = st.secrets.get(key, None)
+        if val:
+            return val
     except:
-        return os.environ.get(key, default)
+        pass
+    return os.environ.get(key, default)
 
 SUPABASE_URL  = get_secret("SUPABASE_URL",  "https://vvroaokekxbttapefspw.supabase.co")
 SUPABASE_KEY  = get_secret("SUPABASE_KEY",  "sb_publishable_OnL6QmmZGnIAGh5IB5TFXQ_tsVn_qK4")
@@ -126,8 +129,13 @@ SENDER_NAME   = get_secret("SENDER_NAME",   "Núcleo Crédito")
 # SUPABASE
 # ══════════════════════════════════════════════════════════════════════════
 @st.cache_resource
-def get_supabase() -> Client:
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+def get_supabase():
+    try:
+        client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        return client
+    except Exception as e:
+        st.error(f"Erro de conexão: {e}")
+        return None
 
 sb = get_supabase()
 
@@ -461,7 +469,7 @@ def login_screen():
             st.markdown("#### Acesse o sistema")
             user = st.text_input("Usuário", placeholder="usuário")
             pwd  = st.text_input("Senha", type="password", placeholder="••••••••")
-            if st.form_submit_button("Entrar", use_container_width=True):
+            if st.form_submit_button("Entrar", width="stretch"):
                 if check_pwd(user, pwd):
                     st.session_state.logged_in = True
                     st.session_state.username  = user
@@ -614,7 +622,7 @@ if "Dashboard" in menu:
                 textposition="outside"
             ))
             fig.update_layout(height=260, xaxis=dict(range=[0,115], showgrid=True, gridcolor="#F5F5F5"), **{k:v for k,v in plotly_defaults().items() if k!="xaxis"})
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
             st.markdown('</div>', unsafe_allow_html=True)
 
         with col2:
@@ -632,7 +640,7 @@ if "Dashboard" in menu:
             ))
             fig2.add_vline(x=300, line_dash="dot", line_color=GREEN, line_width=1.5)
             fig2.update_layout(height=260, **plotly_defaults())
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
             st.markdown('</div>', unsafe_allow_html=True)
 
         col3, col4 = st.columns(2)
@@ -644,7 +652,7 @@ if "Dashboard" in menu:
                 fig3 = px.bar(cc, x="Canal", y="Leads", color_discrete_sequence=[NAVY], text="Leads")
                 fig3.update_traces(textposition="outside", marker_line_width=0)
                 fig3.update_layout(height=240, **plotly_defaults())
-                st.plotly_chart(fig3, use_container_width=True)
+                st.plotly_chart(fig3, width="stretch")
                 st.markdown('</div>', unsafe_allow_html=True)
 
         with col4:
@@ -657,7 +665,7 @@ if "Dashboard" in menu:
                 fig4.update_traces(textinfo="percent+label", textfont_size=11)
                 fig4.update_layout(height=240, showlegend=False, paper_bgcolor="white",
                     margin=dict(l=0,r=0,t=0,b=0), font=dict(family="Montserrat"))
-                st.plotly_chart(fig4, use_container_width=True)
+                st.plotly_chart(fig4, width="stretch")
                 st.markdown('</div>', unsafe_allow_html=True)
 
         # Pagamentos próximos
@@ -706,7 +714,7 @@ elif "Clientes" in menu:
                 interesse = st.selectbox("Interesse", ["Consignado INSS","Portabilidade","Refinanciamento","Cartão Consignado","Consignado Servidor"])
             obs = st.text_area("Observações", height=60)
 
-            if st.form_submit_button("✅ Cadastrar", use_container_width=True):
+            if st.form_submit_button("✅ Cadastrar", width="stretch"):
                 if not nome or not beneficio:
                     st.error("Nome e Benefício são obrigatórios.")
                 else:
@@ -829,7 +837,7 @@ elif "Leads" in menu:
                 l_ben    = st.number_input("Benefício (R$)", min_value=0.0, step=50.0)
                 l_status = st.selectbox("Status", ["Novo","Em negociação","Convertido","Perdido"])
             l_obs = st.text_area("Observações", height=50)
-            if st.form_submit_button("✅ Registrar Lead", use_container_width=True):
+            if st.form_submit_button("✅ Registrar Lead", width="stretch"):
                 insert_lead({"nome":l_nome,"telefone":l_tel,"canal":l_canal,
                              "interesse":l_int,"beneficio":float(l_ben),"status":l_status,"observacoes":l_obs})
                 st.success("Lead registrado!")
@@ -900,7 +908,7 @@ elif "Contratos" in menu:
                     parc_tot = st.number_input("Parcelas", min_value=1, max_value=84, value=36, step=1)
                     taxa     = st.number_input("Taxa (% a.m.)", min_value=0.5, max_value=5.0, value=1.8, step=0.1)
                     d_ini    = st.date_input("Data Início")
-                if st.form_submit_button("✅ Registrar", use_container_width=True):
+                if st.form_submit_button("✅ Registrar", width="stretch"):
                     insert_contrato({"cliente_id":cli_map[cli_sel],"banco":banco,"valor":float(valor),
                         "parcelas_total":int(parc_tot),"taxa_juros":float(taxa),"data_inicio":str(d_ini)})
                     st.success("Contrato registrado!")
@@ -915,7 +923,7 @@ elif "Contratos" in menu:
         st.dataframe(dfc[["cliente_nome","banco","valor","parcelas_total","parcela","comissao","data_inicio"]].rename(columns={
             "cliente_nome":"Cliente","banco":"Banco","valor":"Valor (R$)","parcelas_total":"Parcelas",
             "parcela":"Parcela/mês","comissao":"Comissão","data_inicio":"Início"
-        }), use_container_width=True, hide_index=True)
+        }), width="stretch", hide_index=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -996,7 +1004,7 @@ elif "Simulador" in menu:
             fig5.add_hline(y=md, line_dash="dot", line_color=GREEN, line_width=2,
                            annotation_text=f"Margem {fmt(md)}", annotation_font_size=11)
             fig5.update_layout(height=260, **plotly_defaults())
-            st.plotly_chart(fig5, use_container_width=True)
+            st.plotly_chart(fig5, width="stretch")
             st.markdown("🟢 Verde = cabe na margem &nbsp;&nbsp; 🔴 Vermelho = excede")
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1212,7 +1220,7 @@ elif "Email" in menu:
             st.warning("Nenhum cliente com email cadastrado. Adicione emails na aba Clientes.")
         else:
             selecionados = st.multiselect("Selecionar clientes", df_com_email["nome"].tolist(), default=df_com_email["nome"].tolist())
-            if st.button("📧 Enviar Calendário INSS", use_container_width=True):
+            if st.button("📧 Enviar Calendário INSS", width="stretch"):
                 enviados = 0
                 for _, row in df_com_email[df_com_email["nome"].isin(selecionados)].iterrows():
                     if email_calendario_inss(row["nome"], row["email"], row["cpf_raw"], row["beneficio"]):
@@ -1234,7 +1242,7 @@ elif "Email" in menu:
             st.warning("Nenhum cliente com email cadastrado.")
         else:
             selecionados2 = st.multiselect("Clientes", df_com_email["nome"].tolist(), default=df_com_email["nome"].tolist(), key="dica_sel")
-            if st.button("📧 Enviar Dica", use_container_width=True):
+            if st.button("📧 Enviar Dica", width="stretch"):
                 enviados = 0
                 for _, row in df_com_email[df_com_email["nome"].isin(selecionados2)].iterrows():
                     if email_dica_financeira(row["nome"], row["email"], dica_sel, dica_corpo):
@@ -1250,7 +1258,7 @@ elif "Email" in menu:
             st.warning("Nenhum cliente com email cadastrado.")
         else:
             selecionados3 = st.multiselect("Clientes", df_com_email["nome"].tolist(), key="camp_sel")
-            if st.button("📣 Enviar Campanha", use_container_width=True):
+            if st.button("📣 Enviar Campanha", width="stretch"):
                 if not camp_assunto or not camp_corpo:
                     st.error("Preencha o assunto e o corpo.")
                 else:
