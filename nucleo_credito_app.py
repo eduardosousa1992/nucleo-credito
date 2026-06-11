@@ -31,6 +31,10 @@ LIGHT  = "#F0F4F8"
 # INJEÇÃO DE CSS PREMIUM COM SUPORTE A COMPONENTIZAÇÃO NATIVA
 # ══════════════════════════════════════════════════════════════════════════
 st.markdown(f"""
+# ══════════════════════════════════════════════════════════════════════════
+# CSS PREMIUM CORRIGIDO (BLINDAGEM DE EXPANDERS E SOBREPOSIÇÃO)
+# ══════════════════════════════════════════════════════════════════════════
+st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
 * {{ font-family: 'Montserrat', sans-serif !important; }}
@@ -41,7 +45,33 @@ footer {{ display: none !important; }}
 [data-testid="stSidebarContent"] {{ display: none !important; }}
 [data-testid="collapsedControl"] {{ display: none !important; }}
 
-/* Container Fixo da Topbar */
+/* Correção de Margem e Blindagem do Bloco de Conteúdo Principal */
+.main-content {{ 
+  margin-top: 90px !important; 
+  padding: 0 16px !important; 
+}}
+
+/* Força o isolamento dos blocos de expander nativos para evitar vazamento de CSS da Topbar */
+div[data-testid="stExpander"] {{
+  background-color: white !important;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04) !important;
+  border: 1px solid #E2E8F0 !important;
+  margin-bottom: 12px !important;
+}}
+
+/* Remove e limpa qualquer pseudo-elemento ou ícone fantasma gerado fora do padrão */
+div[data-testid="stExpander"] summary svg {{
+  color: {NAVY} !important;
+}}
+div[data-testid="stExpander"] summary span p {{
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: {NAVY} !important;
+  margin: 0 !important;
+}}
+
+/* Barra Superior Fixa Estruturada */
 .topbar {{
   position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
   background: linear-gradient(90deg, {NAVY} 0%, #0F2347 100%);
@@ -56,7 +86,7 @@ footer {{ display: none !important; }}
 .topbar-logo-name {{ color: white; font-size: 16px; font-weight: 800; letter-spacing: -0.3px; display: block; }}
 .topbar-logo-sub {{ color: rgba(255,255,255,0.45); font-size: 9px; font-style: italic; display: block; margin-top: 1px; }}
 
-/* Customização dos botões nativos embutidos na barra superior */
+/* Alinhamento Milimétrico dos Botões Nativos Fixados na Topbar */
 div.topbar-nav-mount {{
   position: fixed; top: 10px; left: 240px; width: 850px; z-index: 100000;
 }}
@@ -76,10 +106,7 @@ div.topbar-nav-mount button:hover {{
   color: white !important;
 }}
 
-.topbar-user {{ color: rgba(255,255,255,0.7); font-size: 12px; font-weight: 500; }}
-
-.main-content {{ margin-top: 72px; padding: 0 8px; }}
-
+.topbar-user {{ color: rgba(255,255,255,0.85); font-size: 12px; font-weight: 600; }}
 .page-header {{ background: white; border-radius: 14px; padding: 18px 24px; margin-bottom: 18px; border-left: 4px solid {GREEN}; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }}
 .page-header h2 {{ color: {NAVY}; font-size: 18px; font-weight: 800; margin: 0 0 3px; }}
 .page-header p {{ color: #888; font-size: 12px; margin: 0; }}
