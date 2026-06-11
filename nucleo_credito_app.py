@@ -11,13 +11,13 @@ import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 
 # ══════════════════════════════════════════════════════════════════════════
-# CONFIGURAÇÃO CORE DA PÁGINA
+# CONFIGURAÇÃO CORE DA PÁGINA (Sidebar visível e responsiva)
 # ══════════════════════════════════════════════════════════════════════════
 st.set_page_config(
-    page_title="Núcleo Crédito",
+    page_title="Refinanciamento & Portabilidade",
     page_icon="⚛",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 NAVY   = "#1B3A6B"
@@ -28,85 +28,50 @@ WHITE  = "#FFFFFF"
 LIGHT  = "#F0F4F8"
 
 # ══════════════════════════════════════════════════════════════════════════
-# INJEÇÃO DE CSS PREMIUM COM SUPORTE A COMPONENTIZAÇÃO NATIVA
-# ══════════════════════════════════════════════════════════════════════════
-st.markdown(f"""
-# ══════════════════════════════════════════════════════════════════════════
-# CSS PREMIUM CORRIGIDO (BLINDAGEM DE EXPANDERS E SOBREPOSIÇÃO)
+# INJEÇÃO DE CSS PREMIUM (Otimizado para o Layout de Menu Lateral)
 # ══════════════════════════════════════════════════════════════════════════
 st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
 * {{ font-family: 'Montserrat', sans-serif !important; }}
-.main {{ background: #F0F4F8; padding-top: 0 !important; }}
-header[data-testid="stHeader"] {{ display: none !important; }}
-footer {{ display: none !important; }}
-#MainMenu {{ display: none !important; }}
-[data-testid="stSidebarContent"] {{ display: none !important; }}
-[data-testid="collapsedControl"] {{ display: none !important; }}
+.main {{ background: #F0F4F8; padding-top: 20px !important; }}
 
-/* Correção de Margem e Blindagem do Bloco de Conteúdo Principal */
-.main-content {{ 
-  margin-top: 90px !important; 
-  padding: 0 16px !important; 
+/* Customização Estilizada da Barra Lateral (Sidebar Premium) */
+[data-testid="stSidebar"] {{
+    background: linear-gradient(180deg, {NAVY} 0%, #0F2347 100%) !important;
+    box-shadow: 4px 0 15px rgba(0,0,0,0.15) !important;
 }}
+[data-testid="stSidebar"] * {{ color: white !important; }}
 
-/* Força o isolamento dos blocos de expander nativos para evitar vazamento de CSS da Topbar */
-div[data-testid="stExpander"] {{
-  background-color: white !important;
-  border-radius: 12px !important;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.04) !important;
-  border: 1px solid #E2E8F0 !important;
-  margin-bottom: 12px !important;
+/* Customização dos botões de menu dentro da Sidebar */
+div.sidebar-nav-container button {{
+    background: transparent !important;
+    border: none !important;
+    color: rgba(255,255,255,0.75) !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    padding: 10px 16px !important;
+    border-radius: 8px !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+    width: 100% !important;
+    transition: all .2s !important;
+    margin-bottom: 4px !important;
 }}
-
-/* Remove e limpa qualquer pseudo-elemento ou ícone fantasma gerado fora do padrão */
-div[data-testid="stExpander"] summary svg {{
-  color: {NAVY} !important;
-}}
-div[data-testid="stExpander"] summary span p {{
-  font-size: 14px !important;
-  font-weight: 700 !important;
-  color: {NAVY} !important;
-  margin: 0 !important;
+div.sidebar-nav-container button:hover {{
+    background: rgba(255,255,255,0.1) !important;
+    color: white !important;
+    padding-left: 22px !important;
 }}
 
-/* Barra Superior Fixa Estruturada */
-.topbar {{
-  position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
-  background: linear-gradient(90deg, {NAVY} 0%, #0F2347 100%);
-  height: 56px; display: flex; align-items: center;
-  padding: 0 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.25);
-}}
-.topbar-logo {{
-  display: flex; align-items: center; gap: 10px;
-  text-decoration: none; margin-right: 32px; flex-shrink: 0;
-}}
-.topbar-logo-text {{ line-height: 1; }}
-.topbar-logo-name {{ color: white; font-size: 16px; font-weight: 800; letter-spacing: -0.3px; display: block; }}
-.topbar-logo-sub {{ color: rgba(255,255,255,0.45); font-size: 9px; font-style: italic; display: block; margin-top: 1px; }}
-
-/* Alinhamento Milimétrico dos Botões Nativos Fixados na Topbar */
-div.topbar-nav-mount {{
-  position: fixed; top: 10px; left: 240px; width: 850px; z-index: 100000;
-}}
-div.topbar-nav-mount button {{
-  background: transparent !important;
-  border: none !important;
-  color: rgba(255,255,255,0.65) !important;
-  font-size: 11px !important;
-  font-weight: 600 !important;
-  padding: 8px 12px !important;
-  border-radius: 8px !important;
-  transition: all .15s !important;
-  white-space: nowrap !important;
-}}
-div.topbar-nav-mount button:hover {{
-  background: rgba(255,255,255,0.12) !important;
-  color: white !important;
+/* Estado Ativo do Menu Selecionado */
+.active-menu-btn button {{
+    background: {GREEN} !important;
+    color: white !important;
+    font-weight: 700 !important;
+    box-shadow: 0 4px 12px rgba(26,122,94,0.3) !important;
 }}
 
-.topbar-user {{ color: rgba(255,255,255,0.85); font-size: 12px; font-weight: 600; }}
 .page-header {{ background: white; border-radius: 14px; padding: 18px 24px; margin-bottom: 18px; border-left: 4px solid {GREEN}; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }}
 .page-header h2 {{ color: {NAVY}; font-size: 18px; font-weight: 800; margin: 0 0 3px; }}
 .page-header p {{ color: #888; font-size: 12px; margin: 0; }}
@@ -371,64 +336,71 @@ if not st.session_state.logged_in:
         st.markdown(f"<p style='text-align:center;font-size:10px;color:#ccc;margin-top:10px'>Dados criptografados · LGPD</p>",unsafe_allow_html=True)
     st.stop()
 
-# ── RENDERIZAÇÃO SEGURA DA BARRA SUPERIOR (Apenas se Logado) ──────────────────
+# ══════════════════════════════════════════════════════════════════════════
+# ARQUITETURA DO MENU LATERAL ESTRUTURADO (Retrátil Nativo)
+# ══════════════════════════════════════════════════════════════════════════
 PAGES=["Dashboard","Clientes","Leads","Contratos","Simulador","Alertas","Agenda","Email Marketing","Metas"]
 
-# Gerenciamento de navegação via URL Params
+with st.sidebar:
+    # Cabeçalho interno do Menu Lateral
+    st.markdown(f"""
+    <div style="text-align:center; padding: 10px 0 20px 0;">
+      <svg width="40" height="40" viewBox="0 0 64 64" fill="none">
+        <ellipse cx="32" cy="32" rx="26" ry="10" stroke="{GREEN}" stroke-width="2" fill="none"/>
+        <ellipse cx="32" cy="32" rx="26" ry="10" stroke="{GREEN}" stroke-width="2" fill="none" transform="rotate(60 32 32)"/>
+        <ellipse cx="32" cy="32" rx="26" ry="10" stroke="{GREEN}" stroke-width="2" fill="none" transform="rotate(120 32 32)"/>
+        <circle cx="32" cy="32" r="5" fill="{GREEN}"/><circle cx="32" cy="32" r="2.5" fill="white"/>
+      </svg>
+      <div style="font-size:18px; font-weight:800; color:white; margin-top:8px;">NÚCLEO CRÉDITO</div>
+      <div style="font-size:10px; color:rgba(255,255,255,0.5); font-style:italic;">Consultoria Operacional</div>
+    </div>
+    <hr style="border-color: rgba(255,255,255,0.1); margin: 0 0 16px 0;">
+    """, unsafe_allow_html=True)
+
+    # Injeção dos Botões de Navegação Verticais na Sidebar
+    st.markdown('<div class="sidebar-nav-container">', unsafe_allow_html=True)
+    for page_name in PAGES:
+        is_selected = st.session_state.page == page_name
+        # Aplica uma classe de encapsulamento dinâmica para marcar o botão ativo via CSS
+        container_class = "active-menu-btn" if is_selected else "normal-menu-btn"
+        
+        with st.container():
+            st.markdown(f'<div class="{container_class}">', unsafe_allow_html=True)
+            if st.button(f" {page_name}", key=f"side_nav_{page_name}", use_container_width=True):
+                st.session_state.page = page_name
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Bloco do Usuário Logado e Botão de Logout no rodapé do menu
+    st.markdown("<div style='height: 40px;'></div>", unsafe_allow_html=True)
+    hr_nome = st.session_state.uname.split()[0]
+    st.markdown(f"""
+    <div style="background: rgba(255,255,255,0.06); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px;">
+      <div style="font-size: 11px; color: rgba(255,255,255,0.5); font-weight: 700; text-transform: uppercase;">Operador Ativo</div>
+      <div style="font-size: 14px; font-weight: 600; color: white; margin-top: 2px;">👤 {hr_nome}</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    if st.button("🚪 Sair do Sistema", key="side_logout_btn", use_container_width=True):
+        st.session_state.logged_in=False
+        st.rerun()
+        
+    st.caption(f"v2.5 Premium · {date.today().strftime('%d/%m/%Y')}")
+
+# Gerenciamento de navegação externa via parâmetros na Query URL
 qp = st.query_params
 if "page" in qp and qp["page"] in PAGES:
     st.session_state.page = qp["page"]
 
 pg=st.session_state.page
 
-# Montagem do esqueleto visual fixo da Topbar Premium
-st.markdown(f"""
-<div class="topbar">
-  <div class="topbar-logo">
-    <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
-      <ellipse cx="32" cy="32" rx="26" ry="10" stroke="{GREEN}" stroke-width="2" fill="none"/>
-      <ellipse cx="32" cy="32" rx="26" ry="10" stroke="{GREEN}" stroke-width="2" fill="none" transform="rotate(60 32 32)"/>
-      <ellipse cx="32" cy="32" rx="26" ry="10" stroke="{GREEN}" stroke-width="2" fill="none" transform="rotate(120 32 32)"/>
-      <circle cx="32" cy="32" r="5" fill="{GREEN}"/><circle cx="32" cy="32" r="2.5" fill="white"/>
-    </svg>
-    <div class="topbar-logo-text">
-      <span class="topbar-logo-name">Núcleo Crédito</span>
-      <span class="topbar-logo-sub">No centro da sua vida financeira.</span>
-    </div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-# Injeção assíncrona de botões estáveis nativos dentro da barra superior por CSS absoluto
-with st.container():
-    st.markdown('<div class="topbar-nav-mount">', unsafe_allow_html=True)
-    nav_cols = st.columns(len(PAGES))
-    for idx, page_name in enumerate(PAGES):
-        with nav_cols[idx]:
-            # Roteamento nativo assíncrono por State para prevenir perda de sessão
-            if st.button(page_name, key=f"nav_premium_btn_{page_name}", use_container_width=True):
-                st.session_state.page = page_name
-                st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Injeção da Identidade do Usuário na lateral direita da Topbar
-primeiro_nome = st.session_state.uname.split()[0]
-st.markdown(f"""
-<div style="position:fixed; top:18px; right:24px; z-index:100000;">
-  <span class="topbar-user">👤 {primeiro_nome}</span>
-</div>
-""", unsafe_allow_html=True)
-
-# Sidebar invisível nativa apenas como barreira para Logout seguro
-with st.sidebar:
-    if st.button("🚪 Sair"):
-        st.session_state.logged_in=False
-        st.rerun()
-    st.caption(f"v2.0 · {date.today().strftime('%d/%m/%Y')}")
-
+# Bloco Central da Interface Sem Margens Fantasmas
 st.markdown('<div class="main-content">', unsafe_allow_html=True)
 
-# ── COMPILADO COMPLETO DE PÁGINAS EM PRODUÇÃO ──────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════
+# FLUXO DE RENDERIZAÇÃO DA CAMADA DE APRESENTAÇÃO
+# ══════════════════════════════════════════════════════════════════════════
 
 # ═══ DASHBOARD ═══
 if pg=="Dashboard":
@@ -641,14 +613,14 @@ elif pg=="Contratos":
                 c1,c2=st.columns(2)
                 with c1:
                     cs=st.selectbox("Cliente",list(cm.keys()))
-                    bco=st.selectbox("Banco",["Banco BMG","Banco Safra","Banco PAN","Caixa","BRB","Facta","Itaú Consig."])
+                    bco=st.selectbox("Banco", ["Banco BMG","Banco Safra","Banco PAN","Caixa","BRB","Facta","Itaú Consig."])
                     val=st.number_input("Valor (R$)",min_value=0.0,step=100.0)
                 with c2:
                     pt=st.number_input("Parcelas",min_value=1,max_value=84,value=36,step=1)
                     tx2=st.number_input("Taxa (% a.m.)",min_value=0.5,max_value=5.0,value=1.8,step=0.1)
                     di=st.date_input("Data Início")
                 if st.form_submit_button("✅ Registrar",use_container_width=True):
-                    ins_ct({"cliente_id":cm[cs],"banco":bco,"valor":float(val),"parcelas_total":int(pt),"taxa_juros":float(tx2),"data_inicio":str(di)}); st.success("Contrato registrado!"); st.rerun()
+                    ins_ct({"cliente_id":cm[cs],"banco":bco],"valor":float(val),"parcelas_total":int(pt),"taxa_juros":float(tx2),"data_inicio":str(di)}); st.success("Contrato registrado!"); st.rerun()
     if not dfc.empty:
         dfc["parcela"]=dfc.apply(lambda r: round(r["valor"]*(r["taxa_juros"]/100*(1+r["taxa_juros"]/100)**r["parcelas_total"])/((1+r["taxa_juros"]/100)**r["parcelas_total"]-1),2) if r["parcelas_total"]>0 else 0,axis=1)
         dfc["comissao"]=(dfc["valor"]*0.03).round(2)
