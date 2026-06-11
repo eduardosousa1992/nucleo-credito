@@ -11,10 +11,10 @@ import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 
 # ══════════════════════════════════════════════════════════════════════════
-# CONFIGURAÇÃO CORE DA PÁGINA (Menu Lateral Expandido por Padrão)
+# CONFIGURAÇÃO CORE DA PÁGINA (Menu Lateral Expandido Corporativo)
 # ══════════════════════════════════════════════════════════════════════════
 st.set_page_config(
-    page_title="Refinanciamento & Portabilidade",
+    page_title="Núcleo Crédito",
     page_icon="⚛",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -28,7 +28,7 @@ WHITE  = "#FFFFFF"
 LIGHT  = "#F8FAFC"
 
 # ══════════════════════════════════════════════════════════════════════════
-# INJEÇÃO DE CSS EXCLUSIVO (Garantia de Alto Contraste e Zero Texto Fantasma)
+# INJEÇÃO DE CSS EXCLUSIVO (Alto Contraste, Fontes Escuras e Grid Estável)
 # ══════════════════════════════════════════════════════════════════════════
 st.markdown(f"""
 <style>
@@ -36,7 +36,7 @@ st.markdown(f"""
 * {{ font-family: 'Montserrat', sans-serif !important; }}
 .main {{ background-color: #F8FAFC !important; padding-top: 15px !important; }}
 
-/* Customização Premium da Sidebar Corporativa */
+/* Estilização Premium da Sidebar Executiva */
 [data-testid="stSidebar"] {{
     background: linear-gradient(180deg, {NAVY} 0%, #0F2347 100%) !important;
     box-shadow: 4px 0 15px rgba(0,0,0,0.1) !important;
@@ -71,7 +71,7 @@ div.sidebar-nav-container button:hover {{
     box-shadow: 0 4px 12px rgba(26,122,94,0.2) !important;
 }}
 
-/* Blocos de Conteúdo Estilo Cards Executivos de Alto Contraste */
+/* Blocos de Conteúdo e Elementos de Formulário (Garantia de Alto Contraste) */
 div.content-card {{
     background-color: white !important;
     border: 1px solid #E2E8F0 !important;
@@ -81,30 +81,31 @@ div.content-card {{
     margin-bottom: 16px !important;
 }}
 
-/* Força os rótulos de input a manterem visibilidade absoluta */
+/* Força os rótulos nativos de input do Streamlit a manterem a cor escura tradicional */
 label[data-testid="stWidgetLabel"] p {{
     color: #334155 !important;
     font-weight: 600 !important;
     font-size: 13px !important;
 }}
 
-/* Proteção contra vazamento de strings Material Icons nas setas nativas */
-[data-testid="collapsedControl"] button {{
-    color: {NAVY} !important;
+/* Customização dos componentes nativos de KPI para prevenir empilhamento vertical */
+div[data-testid="stMetricBlock"] {{
     background-color: white !important;
-    border-radius: 50% !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 10px !important;
+    padding: 12px !important;
 }}
 
 .page-header {{ background: white; border-radius: 14px; padding: 18px 24px; margin-bottom: 20px; border-left: 4px solid {GREEN}; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }}
 .page-header h2 {{ color: {NAVY}; font-size: 20px; font-weight: 800; margin: 0 0 4px; }}
 .page-header p {{ color: #64748B; font-size: 13px; margin: 0; }}
 
-.kpi {{ background: white; border-radius: 12px; padding: 16px 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.03); border-top: 3px solid {GREEN}; text-align: center; }}
+.kpi {{ background: white; border-radius: 12px; padding: 16px 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.03); border-top: 3px solid {GREEN}; text-align: center; margin-bottom: 10px; }}
 .kpi.n {{ border-top-color: {NAVY}; }}
 .kpi.r {{ border-top-color: {RED}; }}
 .kpi.y {{ border-top-color: {YELLOW}; }}
 .kpi-lbl {{ font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; margin-bottom: 6px; }}
-.kpi-val {{ font-size: 22px; font-weight: 800; color: {NAVY}; line-height: 1; }}
+.kpi-val {{ font-size: 20px; font-weight: 800; color: {NAVY}; line-height: 1; }}
 .kpi-sub {{ font-size: 10px; color: #94A3B8; margin-top: 4px; }}
 
 .chart-card {{ background: white; border-radius: 14px; padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.03); margin-bottom: 16px; }}
@@ -121,38 +122,35 @@ label[data-testid="stWidgetLabel"] p {{
 </style>
 """, unsafe_allow_html=True)
 
-# ── SECRETS (Protocolo Fallback Dinâmico) ──────────────────────────────────
-def gs(key, default=""):
-    try:
-        v = st.secrets.get(key)
-        if v: return str(v)
-    except: pass
-    return os.environ.get(key, default)
+# ── FORMATADORES E COMPONENTES AUXILIARES CORE ─────────────────────────────
+def fmt(v): 
+    return f"R$ {abs(v):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+def kpi(l, v, s="", c="g"):
+    cc = {"n": "n", "r": "r", "y": "y"}.get(c, "")
+    return f'<div class="kpi {cc}"><div class="kpi-lbl">{l}</div><div class="kpi-val">{v}</div>{"<div class=kpi-sub>" + s + "</div>" if s else ""}</div>'
+
+def badge(t, c):
+    cl = {"g": "bg", "y": "by", "r": "br", "b": "bb", "n": "bn"}.get(c, "bb")
+    return f'<span class="badge {cl}">{t}</span>'
+
+def plt_def(): 
+    return dict(plot_bgcolor="white", paper_bgcolor="white", margin=dict(l=0, r=10, t=8, b=0), font=dict(family="Montserrat"), xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor="#F1F5F9"))
+
+# ── GESTÃO DE SECRETS E VARIÁVEIS DE AMBIENTE ──────────────────────────────
 SUPABASE_URL  = gs("SUPABASE_URL", "https://vvroaokekxbttapefspw.supabase.co")
 SUPABASE_KEY  = gs("SUPABASE_KEY", "sb_publishable_OnL6QmmZGnIAGh5IB5TFXQ_tsVn_qK4")
 BREVO_KEY     = gs("BREVO_API_KEY", "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")
 SENDER_EMAIL  = gs("SENDER_EMAIL", "nucleocastelo.credito@gmail.com")
 SENDER_NAME   = gs("SENDER_NAME",  "Consultoria")
 
-# ── SUPABASE CONEXÃO OPERACIONAL ──────────────────────────────────────────
-@st.cache_resource
-def get_sb():
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        return None
-    try:
-        return create_client(SUPABASE_URL, SUPABASE_KEY)
-    except Exception as e:
-        st.error(f"Conexão com a base de dados falhou: {e}")
-        return None
-
+# ── CONEXÃO SUPABASE CACHED ────────────────────────────────────────────────
 sb = get_sb()
 
-# ── INFRAESTRUTURA CRIPTOGRÁFICA (LGPD Compliance) ─────────────────────────
+# ── SEGURANÇA E CRIPTOGRAFIA LGPD ──────────────────────────────────────────
 def _f():
     k = gs("ENCRYPT_KEY", "")
-    if k:
-        return Fernet(k.encode())
+    if k: return Fernet(k.encode())
     return Fernet(base64.urlsafe_b64encode(hashlib.sha256(b"nucleo2026").digest()))
 
 def enc(t):
@@ -188,52 +186,7 @@ INSS = {
 }
 MESES = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"]
 
-def prox_pg(cpf_raw):
-    try:
-        d = "".join(filter(str.isdigit, cpf_raw or ""))
-        if not d: return None, None
-        u = int(d[-1])
-        hoje = date.today()
-        mes = MESES[hoje.month - 1]
-        if u in INSS and mes in INSS[u]:
-            pg = datetime.strptime(INSS[u][mes], "%Y-%m-%d").date()
-            if pg < hoje:
-                pm = MESES[hoje.month % 12]
-                if pm in INSS[u]:
-                    pg = datetime.strptime(INSS[u][pm], "%Y-%m-%d").date()
-            return pg, (pg - hoje).days
-    except: pass
-    return None, None
-
-# ── PROSPECÇÃO: SCORE DE PROPENSÃO OPERACIONAL ─────────────────────────────
-def score(row):
-    s = 0
-    m = row.get("margem", 0)
-    if m > 600: s += 40
-    elif m > 300: s += 30
-    elif m > 100: s += 15
-    s += {"Ativo": 20, "Lead Quente": 25, "Em análise": 15}.get(row.get("status", ""), 0)
-    s += {"Indicação": 20, "WhatsApp": 15, "Rádio": 12, "Panfletagem": 10, "Google": 12, "Instagram": 8}.get(row.get("canal", ""), 5)
-    _, dias = prox_pg(row.get("cpf_raw", ""))
-    if dias is not None:
-        if 0 <= dias <= 2: s += 15
-        elif 3 <= dias <= 5: s += 10
-    return min(s, 100)
-
-# ── MARKETING: BREVO TRANSACTIONAL ENGINE ──────────────────────────────────
-def send_email(to_email, to_name, subject, html):
-    try:
-        cfg = sib_api_v3_sdk.Configuration()
-        cfg.api_key["api-key"] = BREVO_KEY
-        api = sib_api_v3_sdk.TransactionalEmailsApi(sib_api_v3_sdk.ApiClient(cfg))
-        api.send_transac_email(sib_api_v3_sdk.SendSmtpEmail(
-            to=[{"email": to_email, "name": to_name}],
-            sender={"email": SENDER_EMAIL, "name": SENDER_NAME},
-            subject=subject, html_content=html))
-        return True
-    except: return False
-
-# ── DATA LAYER (DQL / DML EXECUTION) ───────────────────────────────────────
+# ── CAMADA DE PERSISTÊNCIA DML / DQL ───────────────────────────────────────
 def load_clientes():
     if not sb: return pd.DataFrame()
     try:
@@ -302,21 +255,7 @@ def del_cli(id):
     sb.table("clientes").delete().eq("id", id).execute()
 def del_fu(id): sb.table("followups").delete().eq("id", id).execute()
 
-# ── ACESSO E AUTENTICAÇÃO ESTRITA (HMAC / SHA-256) ─────────────────────────
-USERS = {"eduardo": {"pwd": hashlib.sha256(b"nucleo2026").hexdigest(), "name": "Eduardo Lima de Sousa"}}
-
-def chk(u, p):
-    usr = USERS.get(u.lower())
-    if not usr: return False
-    return hmac.compare_digest(usr["pwd"], hashlib.sha256(p.encode()).hexdigest())
-
-# ── SESSÃO E ROTEAMENTO INTERNO ────────────────────────────────────────────
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "page" not in st.session_state:
-    st.session_state.page = "Dashboard"
-
-# ── LOGIN BLINDADO (Isolamento de Escopo) ──────────────────────────────────
+# ── FORMULÁRIO DE AUTENTICAÇÃO CORPORATIVA ─────────────────────────────────
 if not st.session_state.logged_in:
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
@@ -347,11 +286,7 @@ if not st.session_state.logged_in:
         st.markdown(f"<p style='text-align:center;font-size:10px;color:#ccc;margin-top:10px'>Dados criptografados · LGPD</p>", unsafe_allow_html=True)
     st.stop()
 
-# ══════════════════════════════════════════════════════════════════════════
-# INTERFACE SIDEBAR: GESTÃO DO MENU RETRÁTIL PREMIUM NATIVO
-# ══════════════════════════════════════════════════════════════════════════
-PAGES = ["Dashboard", "Clientes", "Leads", "Contratos", "Simulador", "Alertas", "Agenda", "Email Marketing", "Metas"]
-
+# ── RENDERIZAÇÃO DA SIDEBAR DRAWER NATIVA ──────────────────────────────────
 with st.sidebar:
     st.markdown(f"""
     <div style="text-align:center; padding: 10px 0 20px 0;">
@@ -395,17 +330,17 @@ with st.sidebar:
         
     st.caption(f"v2.5 Premium · {date.today().strftime('%d/%m/%Y')}")
 
+# Sincronização Dinâmica por Query URL Parameters
 qp = st.query_params
 if "page" in qp and qp["page"] in PAGES:
     st.session_state.page = qp["page"]
 
 pg = st.session_state.page
 
-# Bloco Central Limpo Contra Sobreposição de Margens
 st.markdown('<div class="main-content">', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════
-# CAMADA DE APRESENTAÇÃO OPERACIONAL COERENTE
+# CAMADA DE APRESENTAÇÃO PREMIUM
 # ══════════════════════════════════════════════════════════════════════════
 
 # ═══ DASHBOARD ═══
@@ -424,10 +359,9 @@ if pg == "Dashboard":
         dfa["data_followup"] = pd.to_datetime(dfa["data_followup"]).dt.date
         fh = len(dfa[dfa["data_followup"] == date.today()])
 
-    # Grid de KPIs estruturados assincronamente em colunas estáveis
     k_cols = st.columns(4)
     with k_cols[0]: st.markdown(kpi("Clientes Cadastrados", str(tc), f"{at} ativos na base", "n"), unsafe_allow_html=True)
-    with k_cols[1]: st.markdown(kpi("Margem Disponível Total", fmt(mt), "Disponível para venda", "g"), unsafe_allow_html=True)
+    with k_cols[1]: st.markdown(kpi("Margem Total Disponível", fmt(mt), "Disponível para venda", "g"), unsafe_allow_html=True)
     with k_cols[2]: st.markdown(kpi("Oportunidades Filtradas", str(op), "Margem > R$300", "y"), unsafe_allow_html=True)
     with k_cols[3]: st.markdown(kpi("Volume de Vendas Realizado", fmt(car), f"Pipeline: {tl} leads", "g"), unsafe_allow_html=True)
 
@@ -441,7 +375,7 @@ if pg == "Dashboard":
             fig = go.Figure(go.Bar(x=ds["score"], y=ds["nome"].str.split().str[:2].str.join(" "), orientation="h",
                 marker_color=[GREEN if s >= 75 else YELLOW if s >= 55 else NAVY for s in ds["score"]],
                 marker_line_width=0, text=[f"{s}%" for s in ds["score"]], textposition="outside"))
-            fig.update_layout(height=240, xaxis=dict(range=[0, 115], showgrid=True, gridcolor="#F1F5F9"), **{k: v for k, v in plt_def().items() if k != "xaxis"})
+            fig.update_layout(height=240, xaxis=dict(range=[0, 115], showgrid=True, gridcolor="#F5F5F5"), **{k: v for k, v in plt_def().items() if k != "xaxis"})
             st.plotly_chart(fig, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
         with c2:
@@ -489,13 +423,12 @@ if pg == "Dashboard":
                 </div>""", unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.info("Nenhum cliente localizado na base de dados para estruturação analítica.")
+        st.info("Nenhum cliente cadastrado. Vá para Clientes para começar.")
 
 # ═══ CLIENTES ═══
 elif pg == "Clientes":
-    st.markdown('<div class="page-header"><h2>👥 Gestão de Clientes</h2><p>Base relacional estruturada com criptografia Fernet — LGPD Compliance</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-header"><h2>👥 Gestão de Clientes</h2><p>Base relacional com chaves criptografadas — LGPD Compliance</p></div>', unsafe_allow_html=True)
     
-    # Formulário de Cadastro Isolado por Bloco sem Quebra de Contraste
     st.markdown('<div class="content-card"><h4>➕ Cadastrar Novo Cliente</h4>', unsafe_allow_html=True)
     with st.form("fc", clear_on_submit=True):
         c1, c2 = st.columns(2)
@@ -522,26 +455,23 @@ elif pg == "Clientes":
     df = load_clientes()
     if not df.empty:
         cf1, cf2, cf3 = st.columns(3)
-        with cf1: fs = st.multiselect("Filtrar por Status", df["status"].unique().tolist(), default=df["status"].unique().tolist())
-        with cf2: fc = st.multiselect("Filtrar por Canal", df["canal"].unique().tolist(), default=df["canal"].unique().tolist())
+        with cf1: fs = st.multiselect("Status", df["status"].unique().tolist(), default=df["status"].unique().tolist())
+        with cf2: fc = st.multiselect("Canal de Origem", df["canal"].unique().tolist(), default=df["canal"].unique().tolist())
         with cf3: oo = st.checkbox("Exibir apenas oportunidades (>R$300)")
         
         dff = df[df["status"].isin(fs) & df["canal"].isin(fc)]
         if oo: dff = dff[dff["margem"] > 300]
         dff = dff.sort_values("score", ascending=False)
         
-        st.markdown(f"<p style='color:#64748B; font-size:13px;'>Filtrados <b>{len(dff)}</b> cliente(s) na carteira ativa</p>", unsafe_allow_html=True)
-        
         for _, row in dff.iterrows():
             m = row["margem"]
             bm = badge("Oportunidade", "g") if m > 300 else badge("Sem margem", "r") if m <= 0 else badge("Margem baixa", "y")
             
-            # Bloco Estruturado de Informações (Substituição definitiva do expander com arrow_down)
             st.markdown(f"""
             <div class="content-card" style="border-left: 5px solid {GREEN if m>300 else RED if m<=0 else YELLOW} !important; margin-bottom: 5px;">
                 <h4 style="color:{NAVY}; margin:0 0 4px 0;">👤 {row['nome']}</h4>
                 <p style="color:#64748B; font-size:13px; margin:0 0 12px 0;">{row['tel_d']} · Canal: {row['canal']} · Produto: {row['interesse']}</p>
-                <div style="margin-bottom:5px;">{bm} {badge(row['status'], 'b')} {badge(f"Score {row['score']}%", 'n')}</div>
+                <div style="margin-bottom:15px;">{bm} {badge(row['status'], 'b')} {badge(f"Score {row['score']}%", 'n')}</div>
             </div>
             """, unsafe_allow_html=True)
             
@@ -556,11 +486,10 @@ elif pg == "Clientes":
                 </div>
                 """, unsafe_allow_html=True)
             with cb:
-                # Formulários com chaves únicas geradas dinamicamente via ID de registro
                 with st.form(f"h_form_{row['id']}"):
-                    tp = st.selectbox("Registrar Ação", ["Ligação", "WhatsApp", "Visita", "Email"], key=f"tp_{row['id']}")
+                    tp = st.selectbox("Registrar Contato", ["Ligação", "WhatsApp", "Visita", "Email"], key=f"tp_{row['id']}")
                     nt = st.text_input("Nota / Resumo", key=f"nt_{row['id']}", placeholder="O que o cliente disse?")
-                    if st.form_submit_button("📝 Salvar Histórico"):
+                    if st.form_submit_button("📝 Adicionar Nota"):
                         ins_hist({"cliente_id": row["id"], "tipo": tp, "nota": nt, "data": str(date.today())}); st.rerun()
                 
                 with st.form(f"fu_form_{row['id']}"):
@@ -574,7 +503,7 @@ elif pg == "Clientes":
                     if row.get("email") and st.button("📧 Enviar Mailing", key=f"em_{row['id']}", use_container_width=True):
                         pg2, dias2 = prox_pg(row["cpf_raw"])
                         html = f'<div style="font-family:sans-serif;max-width:500px;margin:0 auto"><div style="background:{NAVY};padding:20px;border-radius:10px 10px 0 0"><h2 style="color:white;margin:0">⚛ Núcleo Crédito</h2></div><div style="background:white;padding:24px"><p>Olá <b>{row["nome"].split()[0]}</b>! Seu próximo INSS: <b style="color:{GREEN}">{pg2.strftime("%d/%m/%Y") if pg2 else "Em breve"}</b></p></div></div>'
-                        st.success("Mailing Enviado!") if send_email(row["email"], row["nome"], "Seu INSS — Núcleo Crédito", html) else st.error("Falha no disparo")
+                        st.success("Enviado!") if send_email(row["email"], row["nome"], "Seu INSS — Núcleo Crédito", html) else st.error("Falha no disparo")
                 with c_btn2:
                     if st.button("🗑 Excluir Ficha", key=f"del_{row['id']}", use_container_width=True):
                         del_cli(row["id"]); st.rerun()
@@ -590,19 +519,19 @@ elif pg == "Clientes":
 
 # ═══ LEADS ═══
 elif pg == "Leads":
-    st.markdown('<div class="page-header"><h2>📋 Pipeline de Leads</h2><p>Funil comercial ativo</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-header"><h2>📋 Pipeline de Leads</h2><p>Funil comercial de captação de clientes</p></div>', unsafe_allow_html=True)
     
     st.markdown('<div class="content-card"><h4>➕ Registrar Novo Lead</h4>', unsafe_allow_html=True)
     with st.form("fl", clear_on_submit=True):
         c1, c2 = st.columns(2)
         with c1:
-            ln = st.text_input("Nome Comercial")
-            lt = st.text_input("WhatsApp / Contato")
-            lc = st.selectbox("Canal de Origem", ["Panfletagem", "Rádio", "WhatsApp", "Indicação", "Instagram", "Google", "Presencial"])
+            ln = st.text_input("Nome do Prospecto")
+            lt = st.text_input("WhatsApp / Telefone")
+            lc = st.selectbox("Canal de Captação", ["Panfletagem", "Rádio", "WhatsApp", "Indicação", "Instagram", "Google", "Presencial"])
         with c2:
-            li = st.selectbox("Produto Alvo", ["Consignado INSS", "Portabilidade", "Refinanciamento", "Cartão Consignado"])
-            lb = st.number_input("Margem Estimada (R$)", min_value=0.0, step=50.0)
-            ls = st.selectbox("Status Funil", ["Novo", "Em negociação", "Convertido", "Perdido"])
+            li = st.selectbox("Interesse", ["Consignado INSS", "Portabilidade", "Refinanciamento", "Cartão Consignado"])
+            lb = st.number_input("Rendimento Declarado (R$)", min_value=0.0, step=50.0)
+            ls = st.selectbox("Status", ["Novo", "Em negociação", "Convertido", "Perdido"])
         lo = st.text_area("Anotações Gerais", height=60)
         if st.form_submit_button("✅ Salvar no Pipeline", use_container_width=True):
             ins_lead({"nome": ln, "telefone": lt, "canal": lc, "interesse": li, "beneficio": float(lb), "status": ls, "observacoes": lo}); st.success("Lead registrado!"); st.rerun()
@@ -626,7 +555,7 @@ elif pg == "Leads":
                             {"<div style='color:"+GREEN+"; font-weight:700; margin-top:4px; font-size:12px;'>"+fmt(row["beneficio"])+"</div>" if row["beneficio"] else ""}
                         </div>
                         """, unsafe_allow_html=True)
-                        ns = st.selectbox("Alterar Etapa", STATUS, index=STATUS.index(s), key=f"ls_{row['id']}", label_visibility="collapsed")
+                        ns = st.selectbox("Mover Etapa", STATUS, index=STATUS.index(s), key=f"ls_{row['id']}", label_visibility="collapsed")
                         if ns != s: upd_lead(row["id"], ns); st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
     else:
@@ -653,16 +582,16 @@ elif pg == "Contratos":
             cm = {r["nome"]: r["id"] for _, r in df_cli.iterrows()}
             c1, c2 = st.columns(2)
             with c1:
-                cs = st.selectbox("Associar Cliente *", list(cm.keys()))
+                cs = st.selectbox("Selecionar Cliente *", list(cm.keys()))
                 bco = st.selectbox("Banco Liquidador *", ["Banco BMG", "Banco Safra", "Banco PAN", "Caixa", "BRB", "Facta", "Itaú Consig."])
-                val = st.number_input("Valor Bruto Financiado (R$)", min_value=0.0, step=100.0)
+                val = st.number_input("Valor Líquido Liberado (R$)", min_value=0.0, step=100.0)
             with c2:
                 pt = st.number_input("Vezes / Amortização (Meses)", min_value=1, max_value=84, value=36, step=1)
                 tx2 = st.number_input("Taxa de Juros Nominal (% a.m.)", min_value=0.5, max_value=5.0, value=1.8, step=0.1)
                 di = st.date_input("Data de Início da Averbação")
             if st.form_submit_button("✅ Digitar Proposta no Sistema", use_container_width=True):
                 ins_ct({"cliente_id": cm[cs], "banco": bco, "valor": float(val), "parcelas_total": int(pt), "taxa_juros": float(tx2), "data_inicio": str(di)})
-                st.success("Contrato integrado e registrado com sucesso!"); st.rerun()
+                st.success("Proposta integrada com total sucesso operacional!"); st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
     if not dfc.empty:
@@ -675,42 +604,42 @@ elif pg == "Contratos":
 
 # ═══ SIMULADOR ═══
 elif pg == "Simulador":
-    st.markdown('<div class="page-header"><h2>🧮 Simulador Analítico de Crédito</h2><p>Cálculo de margem real e projeções financeiras</p></div>', unsafe_allow_html=True)
-    tab1, tab2 = st.tabs(["💳 Simulação Consignável", "🔄 Engenharia de Portabilidade"])
+    st.markdown('<div class="page-header"><h2>🧮 Simulador de Crédito Consignado</h2><p>Análise de engenharia financeira e viabilidade de propostas</p></div>', unsafe_allow_html=True)
+    tab1, tab2 = st.tabs(["💳 Simulação de Margem", "🔄 Proposta de Portabilidade"])
     with tab1:
         st.markdown('<div class="content-card">', unsafe_allow_html=True)
         c1, c2 = st.columns([1, 1.2])
         with c1:
-            st.markdown("##### Estrutura de Rendimentos")
-            ben2 = st.number_input("Benefício Mensal Bruto (R$)", min_value=0.0, value=1412.0, step=50.0, key="sb")
-            pa2 = st.number_input("Descontos / Parcelas Ativas (R$)", min_value=0.0, value=0.0, step=50.0, key="spa")
+            st.markdown("##### Rendimentos e Descontos")
+            ben2 = st.number_input("Benefício Bruto (R$)", min_value=0.0, value=1412.0, step=50.0, key="sb")
+            pa2 = st.number_input("Soma das Parcelas Ativas (R$)", min_value=0.0, value=0.0, step=50.0, key="spa")
             mc = ben2 * 0.4; md = max(0, mc - pa2); pct2 = min(100, round(pa2 / mc * 100, 1)) if mc > 0 else 0
             cor_md = GREEN if md > 300 else YELLOW if md > 0 else RED
             st.markdown(f"""<div style="background:#F8FAFC; border-radius:8px; padding:16px; border:1px solid #E2E8F0; margin-top:12px;">
               <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #E2E8F0; font-size:13px;"><span style="color:#64748B;">Margem máxima (40%)</span><strong style="color:{NAVY};">{fmt(mc)}</strong></div>
-              <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #E2E8F0; font-size:13px;"><span style="color:#64748B;">Comprometido atual</span><strong style="color:{RED};">{fmt(pa2)}</strong></div>
-              <div style="display:flex; justify-content:space-between; padding:6px 0; font-size:13px;"><span style="color:#64748B;">Margem real líquida</span><strong style="font-size:18px; color:{cor_md};">{fmt(md)}</strong></div>
+              <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #E2E8F0; font-size:13px;"><span style="color:#64748B;">Descontos em folha</span><strong style="color:{RED};">{fmt(pa2)}</strong></div>
+              <div style="display:flex; justify-content:space-between; padding:6px 0; font-size:13px;"><span style="color:#64748B;">Margem líquida disponível</span><strong style="font-size:18px; color:{cor_md};">{fmt(md)}</strong></div>
               <div style="background:#E2E8F0; border-radius:99px; height:8px; margin-top:12px; overflow:hidden;"><div style="background:{GREEN if pct2<60 else YELLOW if pct2<90 else RED}; width:{pct2}%; height:100%;"></div></div>
-              <div style="font-size:11px; color:#94A3B8; margin-top:4px;">Taxa de Ocupação da Margem: {pct2:.0f}%</div>
+              <div style="font-size:11px; color:#94A3B8; margin-top:4px;">Comprometimento de Margem: {pct2:.0f}%</div>
             </div>""", unsafe_allow_html=True)
         with c2:
-            st.markdown("##### Proposta Comercial")
-            val2 = st.number_input("Valor Desejado do Empréstimo (R$)", min_value=0.0, value=3000.0, step=500.0, key="sv")
-            hz = st.select_slider("Prazo de Amortização (Meses)", options=[12, 24, 36, 48, 60, 72, 84], value=36, key="spz")
-            tx3 = st.slider("Taxa do Contrato (% a.m.)", 0.5, 3.5, 1.8, 0.1, key="stx")
+            st.markdown("##### Condições da Nova Proposta")
+            val2 = st.number_input("Valor Financiado Desejado (R$)", min_value=0.0, value=3000.0, step=500.0, key="sv")
+            hz = st.select_slider("Prazo Pretendido (Meses)", options=[12, 24, 36, 48, 60, 72, 84], value=36, key="spz")
+            tx3 = st.slider("Taxa de Juros Alvo (% a.m.)", 0.5, 3.5, 1.8, 0.1, key="stx")
             if val2 > 0 and ben2 > 0:
                 r2 = tx3 / 100; fat = (r2 * (1 + r2)**hz) / ((1 + r2)**hz - 1)
                 parc = val2 * fat; tot = parc * hz; jur = tot - val2; cb = parc <= md
-                cr = GREEN if cb else RED; msg = "✅ Proposta Viável (Margem OK)" if cb else "❌ Margem Insuficiente"
+                cr = GREEN if cb else RED; msg = "✅ Proposta Viável (Margem OK)" if cb else "❌ Excede o Limite do Cliente"
                 st.markdown(f"""<div style="background:white; border-radius:12px; padding:18px; border:1px solid #E2E8F0; border-top:4px solid {cr};">
                     <div style="text-align:center; padding-bottom:10px;">
-                        <span style="font-size:11px; color:#64748B;">PARCELA MENSAL CALCULADA</span>
+                        <span style="font-size:11px; color:#64748B;">PARCELA MENSAL DO EXTRATO</span>
                         <h3 style="color:{cr}; font-weight:800; margin:4px 0;">{fmt(parc)}</h3>
                         <strong style="color:{cr}; font-size:12px;">{msg}</strong>
                     </div>
                   <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:1px solid #F1F5F9; font-size:12px;"><span style="color:#64748B;">Total pago ao final</span><strong>{fmt(tot)}</strong></div>
-                  <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:1px solid #F1F5F9; font-size:12px;"><span style="color:#64748B;">Custo real de juros</span><strong style="color:{RED};">{fmt(jur)}</strong></div>
-                  <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:1px solid #F1F5F9; font-size:12px;"><span style="color:#64748B;">Sua receita estimada</span><strong style="color:{GREEN};">{fmt(val2*0.03)}</strong></div>
+                  <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:1px solid #F1F5F9; font-size:12px;"><span style="color:#64748B;">Custo total de juros</span><strong style="color:{RED};">{fmt(jur)}</strong></div>
+                  <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:1px solid #F1F5F9; font-size:12px;"><span style="color:#64748B;">Receita líquida comercial</span><strong style="color:{GREEN};">{fmt(val2*0.03)}</strong></div>
                 </div>""", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -726,7 +655,7 @@ elif pg == "Simulador":
 
 # ═══ ALERTAS ═══
 elif pg == "Alertas":
-    st.markdown('<div class="page-header"><h2>🔔 Central de Oportunidades Automática</h2><p>Radar analítico por cruzamento preditivo de dados</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-header"><h2>🔔 Central de Alertas Inteligentes</h2><p>Varredura preditiva por propensão de esteira comercial</p></div>', unsafe_allow_html=True)
     df = load_clientes()
     if df.empty: 
         st.info("Nenhum registro localizado para triagem de score.")
@@ -759,7 +688,7 @@ elif pg == "Alertas":
 
 # ═══ AGENDA ═══
 elif pg == "Agenda":
-    st.markdown('<div class="page-header"><h2>📅 Controle de Compromissos (Follow-ups)</h2><p>Retornos operacionais agendados</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-header"><h2>📅 Central de Retornos Sincronizados</h2><p>Gestão e compromissos integrados à esteira relacional</p></div>', unsafe_allow_html=True)
     dfa2 = load_fu()
     if not dfa2.empty:
         dfa2["data_followup"] = pd.to_datetime(dfa2["data_followup"]).dt.date
@@ -784,7 +713,7 @@ elif pg == "Agenda":
                     if st.button("Concluir Alerta", key=f"dfu_{r['id']}", use_container_width=True): 
                         del_fu(r["id"]); st.rerun()
     else:
-        st.info("Nenhum follow-up ativo na agenda de contatos.")
+        st.info("Nenhum agendamento ativo. Crie novos lembretes acessando a aba Clientes.")
 
 # ═══ EMAIL MARKETING ═══
 elif pg == "Email Marketing":
@@ -799,7 +728,7 @@ elif pg == "Email Marketing":
     
     t1, t2, t3 = st.tabs(["📅 Régua Calendário INSS", "💡 Campanhas Informativas", "📣 Campanha Livre"])
     with t1:
-        st.markdown("<p style='font-size:13px; color:#334155;'>Dispare a tabela de pagamento INSS de forma 100% individualizada e automatizada.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size:13px; color:#334155;'>Dispare a tabela de pagamento INSS de forma 100% individualizada.</p>", unsafe_allow_html=True)
         if dce.empty: st.warning("Nenhum cliente com e-mail cadastrado localizado na base.")
         else:
             sel = st.multiselect("Selecionar Destinatários", dce["nome"].tolist(), default=dce["nome"].tolist())
@@ -856,7 +785,6 @@ elif pg == "Metas":
         vf = fmt(atual) if "R$" in lbl else str(int(atual))
         mf = fmt(meta) if "R$" in lbl else str(int(meta))
         
-        # Correção estrita de f-string: Chaves do CSS duplicadas ({{ e }}) para evitar quebra do compilador Python
         st.markdown(f"""
         <div class="content-card">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
