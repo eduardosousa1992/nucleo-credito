@@ -33,7 +33,42 @@ html, body, [class*="css"] {{
 
 /* ── Fundo geral ── */
 .stApp {{
-    background: {LIGHT};
+    background: #EEF2F7;
+}}
+/* ── Área de conteúdo principal ── */
+[data-testid="stAppViewContainer"] > .main {{
+    background: #EEF2F7;
+}}
+/* ── Header de marca acima do conteúdo ── */
+.brand-topbar {{
+    background: linear-gradient(90deg, {NAVY} 0%, #0F2347 100%);
+    padding: 12px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    border-radius: 0 0 16px 16px;
+    box-shadow: 0 2px 12px rgba(27,58,107,0.2);
+}}
+.brand-topbar-left {{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}}
+.brand-topbar-title {{
+    color: white;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+}}
+.brand-topbar-sub {{
+    color: rgba(255,255,255,0.45);
+    font-size: 10px;
+    font-style: italic;
+}}
+.brand-topbar-right {{
+    color: rgba(255,255,255,0.6);
+    font-size: 12px;
 }}
 
 /* ── Esconde elementos nativos desnecessários ── */
@@ -714,6 +749,27 @@ with st.sidebar:
         st.rerun()
 
 # ── PÁGINAS ───────────────────────────────────────────────────────────────────
+
+# ── BRAND TOPBAR ──────────────────────────────────────────────────────────────
+today_str = date.today().strftime('%d/%m/%Y')
+st.markdown(f"""
+<div class="brand-topbar">
+    <div class="brand-topbar-left">
+        <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
+            <ellipse cx="32" cy="32" rx="27" ry="10.5" stroke="{GREEN}" stroke-width="2" fill="none"/>
+            <ellipse cx="32" cy="32" rx="27" ry="10.5" stroke="{GREEN}" stroke-width="2" fill="none" transform="rotate(60 32 32)"/>
+            <ellipse cx="32" cy="32" rx="27" ry="10.5" stroke="{GREEN}" stroke-width="2" fill="none" transform="rotate(120 32 32)"/>
+            <circle cx="32" cy="32" r="5.5" fill="{GREEN}"/>
+            <circle cx="32" cy="32" r="2.5" fill="white"/>
+        </svg>
+        <div>
+            <div class="brand-topbar-title">Núcleo Crédito</div>
+            <div class="brand-topbar-sub">No centro da sua vida financeira.</div>
+        </div>
+    </div>
+    <div class="brand-topbar-right">{today_str} &nbsp;·&nbsp; {st.session_state.uname.split()[0]}</div>
+</div>
+""", unsafe_allow_html=True)
 
 # ═══ DASHBOARD ═══
 if "Dashboard" in menu:
