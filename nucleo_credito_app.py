@@ -620,11 +620,8 @@ def fmt(v):
 
 def kpi_html(label, value, sub="", color="green"):
     c = {"navy":"navy","red":"red","yellow":"yellow"}.get(color, "")
-    return f"""<div class="kpi-card {c}">
-        <div class="kpi-lbl">{label}</div>
-        <div class="kpi-val">{value}</div>
-        {"<div class='kpi-sub'>"+sub+"</div>" if sub else ""}
-    </div>"""
+    s = f"<div class='kpi-sub'>{sub}</div>" if sub else ""
+    return f"<div class=\"kpi-card {c}\"><div class=\"kpi-lbl\">{label}</div><div class=\"kpi-val\">{value}</div>{s}</div>"
 
 def badge(text, color):
     cls = {"green":"b-green","yellow":"b-yellow","red":"b-red","blue":"b-blue","slate":"b-slate"}.get(color,"b-slate")
@@ -655,53 +652,50 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
-    # Esconde sidebar na tela de login
     st.markdown("""<style>
         [data-testid="stSidebar"] {display:none!important}
         [data-testid="collapsedControl"] {display:none!important}
+        .stApp {background: linear-gradient(135deg, #1B3A6B 0%, #0F2347 50%, #1A7A5E 100%) !important;}
+        [data-testid="stAppViewContainer"] {background: transparent !important;}
+        .main {background: transparent !important;}
     </style>""", unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
-        st.markdown(f"""
-        <div class="login-wrap">
-            <svg width="52" height="52" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <ellipse cx="32" cy="32" rx="27" ry="10.5" stroke="{GREEN}" stroke-width="2" fill="none"/>
-                <ellipse cx="32" cy="32" rx="27" ry="10.5" stroke="{GREEN}" stroke-width="2" fill="none" transform="rotate(60 32 32)"/>
-                <ellipse cx="32" cy="32" rx="27" ry="10.5" stroke="{GREEN}" stroke-width="2" fill="none" transform="rotate(120 32 32)"/>
-                <circle cx="32" cy="32" r="5.5" fill="{GREEN}"/>
-                <circle cx="32" cy="32" r="2.5" fill="white"/>
-            </svg>
-            <div style="margin-top:12px">
-                <div style="font-size:24px;font-weight:800;color:{NAVY};letter-spacing:-0.5px">
+        st.markdown("<div style='height:60px'></div>", unsafe_allow_html=True)
+        with st.form("login_form"):
+            st.markdown(f"""
+            <div style="text-align:center;padding:24px 0 20px">
+                <svg width="52" height="52" viewBox="0 0 64 64" fill="none">
+                    <ellipse cx="32" cy="32" rx="27" ry="10.5" stroke="{GREEN}" stroke-width="2" fill="none"/>
+                    <ellipse cx="32" cy="32" rx="27" ry="10.5" stroke="{GREEN}" stroke-width="2" fill="none" transform="rotate(60 32 32)"/>
+                    <ellipse cx="32" cy="32" rx="27" ry="10.5" stroke="{GREEN}" stroke-width="2" fill="none" transform="rotate(120 32 32)"/>
+                    <circle cx="32" cy="32" r="5.5" fill="{GREEN}"/>
+                    <circle cx="32" cy="32" r="2.5" fill="white"/>
+                </svg>
+                <div style="font-size:26px;font-weight:800;color:{NAVY};letter-spacing:-0.5px;margin-top:10px">
                     Núcleo <span style="color:{GREEN}">Crédito</span>
                 </div>
-                <div style="font-size:12px;color:#94A3B8;font-style:italic;margin-top:3px">
+                <div style="font-size:12px;color:#94A3B8;font-style:italic;margin-top:4px;margin-bottom:24px">
                     No centro da sua vida financeira.
                 </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        with st.form("login_form"):
-            st.markdown("#### Acesse o sistema")
-            username = st.text_input("Usuário", placeholder="seu usuário")
-            password = st.text_input("Senha", type="password", placeholder="••••••••")
+            """, unsafe_allow_html=True)
+            username = st.text_input("Usuário", placeholder="seu usuário", label_visibility="collapsed")
+            password = st.text_input("Senha", type="password", placeholder="••••••••", label_visibility="collapsed")
             submitted = st.form_submit_button("Entrar", use_container_width=True)
 
-        if submitted:
-            if check_pwd(username, password):
-                st.session_state.logged_in = True
-                st.session_state.username  = username
-                st.session_state.uname     = USERS[username.lower()]["name"]
-                st.rerun()
-            else:
-                st.error("Usuário ou senha incorretos.")
+        st.markdown(f"<p style='text-align:center;font-size:10px;color:#94A3B8;margin-top:12px'>🔒 Dados criptografados · LGPD Compliant</p>", unsafe_allow_html=True)
 
-        st.markdown(f"""
-        <p style="text-align:center;font-size:10px;color:#CBD5E1;margin-top:16px">
-            🔒 Dados criptografados · LGPD Compliant
-        </p>""", unsafe_allow_html=True)
+    if submitted:
+        if check_pwd(username, password):
+            st.session_state.logged_in = True
+            st.session_state.username  = username
+            st.session_state.uname     = USERS[username.lower()]["name"]
+            st.rerun()
+        else:
+            with col2:
+                st.error("Usuário ou senha incorretos.")
     st.stop()
 
 # ── SIDEBAR ───────────────────────────────────────────────────────────────────
