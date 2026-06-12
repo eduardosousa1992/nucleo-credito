@@ -87,10 +87,25 @@ footer {{ display: none !important; }}
     padding: 0 !important;
 }}
 
-/* Botão hamburguer nativo */
+/* Botão hamburguer nativo - SEMPRE VISÍVEL */
 [data-testid="collapsedControl"] {{
     color: white !important;
     background: {NAVY} !important;
+    border-radius: 0 8px 8px 0 !important;
+    position: fixed !important;
+    top: 50% !important;
+    left: 0 !important;
+    z-index: 9999 !important;
+    width: 28px !important;
+    height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.15) !important;
+}}
+[data-testid="collapsedControl"]:hover {{
+    background: {GREEN} !important;
+    width: 32px !important;
 }}
 
 /* Radio do menu lateral */
@@ -751,7 +766,9 @@ with st.sidebar:
 # ── PÁGINAS ───────────────────────────────────────────────────────────────────
 
 # ── BRAND TOPBAR ──────────────────────────────────────────────────────────────
-today_str = date.today().strftime('%d/%m/%Y')
+from datetime import timezone, timedelta
+br_tz = timezone(timedelta(hours=-3))
+today_str = datetime.now(br_tz).strftime('%d/%m/%Y')
 st.markdown(f"""
 <div class="brand-topbar">
     <div class="brand-topbar-left">
