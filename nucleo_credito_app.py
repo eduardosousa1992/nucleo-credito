@@ -33,11 +33,14 @@ html, body, [class*="css"] {{
 
 /* ── Fundo geral ── */
 .stApp {{
-    background: #EEF2F7;
+    background: #E8EDF5;
+}}
+[data-testid="stAppViewContainer"] > .main {{
+    background: #E8EDF5;
 }}
 /* ── Área de conteúdo principal ── */
 [data-testid="stAppViewContainer"] > .main {{
-    background: #EEF2F7;
+    background: #E8EDF5;
 }}
 /* ── Header de marca acima do conteúdo ── */
 .brand-topbar {{
@@ -79,12 +82,14 @@ footer {{ display: none !important; }}
 
 /* ── SIDEBAR ── */
 [data-testid="stSidebar"] {{
-    background: {NAVY} !important;
+    background: linear-gradient(180deg, #1B3A6B 0%, #0F2347 100%) !important;
     min-width: 220px !important;
     max-width: 220px !important;
+    border-right: none !important;
 }}
 [data-testid="stSidebar"] > div:first-child {{
     padding: 0 !important;
+    background: transparent !important;
 }}
 
 /* Botão hamburguer nativo - SEMPRE VISÍVEL */
@@ -619,8 +624,17 @@ def fmt(v):
     return f"R$ {abs(v):,.2f}".replace(",","X").replace(".",",").replace("X",".")
 
 def kpi_html(label, value, sub="", color="green"):
-    # Uses st.metric natively - no HTML - no </div> issues
-    st.metric(label=label, value=value, help=sub if sub else None)
+    border = {"navy": "#1B3A6B", "red": "#C0392B", "yellow": "#E67E22"}.get(color, "#1A7A5E")
+    sub_html = f'<span style="font-size:10px;color:#94A3B8">{sub}</span>' if sub else ""
+    html = (
+        f'<div style="background:white;border-radius:12px;padding:16px 12px 12px;'
+        f'box-shadow:0 1px 4px rgba(0,0,0,0.08);border-top:3px solid {border};text-align:center;">'
+        f'<div style="font-size:10px;color:#94A3B8;text-transform:uppercase;letter-spacing:.07em;font-weight:700;margin-bottom:5px">{label}</div>'
+        f'<div style="font-size:22px;font-weight:800;color:#1B3A6B;line-height:1.1">{value}</div>'
+        f'{sub_html}'
+        f'</div>'
+    )
+    st.markdown(html, unsafe_allow_html=True)
 
 def badge(text, color):
     cls = {"green":"b-green","yellow":"b-yellow","red":"b-red","blue":"b-blue","slate":"b-slate"}.get(color,"b-slate")
