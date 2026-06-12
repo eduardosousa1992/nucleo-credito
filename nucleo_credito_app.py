@@ -619,9 +619,8 @@ def fmt(v):
     return f"R$ {abs(v):,.2f}".replace(",","X").replace(".",",").replace("X",".")
 
 def kpi_html(label, value, sub="", color="green"):
-    c = {"navy":"navy","red":"red","yellow":"yellow"}.get(color, "")
-    s = f"<div class='kpi-sub'>{sub}</div>" if sub else ""
-    return f"<div class=\"kpi-card {c}\"><div class=\"kpi-lbl\">{label}</div><div class=\"kpi-val\">{value}</div>{s}</div>"
+    # Uses st.metric natively - no HTML - no </div> issues
+    st.metric(label=label, value=value, help=sub if sub else None)
 
 def badge(text, color):
     cls = {"green":"b-green","yellow":"b-yellow","red":"b-red","blue":"b-blue","slate":"b-slate"}.get(color,"b-slate")
@@ -653,39 +652,47 @@ if "logged_in" not in st.session_state:
 
 if not st.session_state.logged_in:
     st.markdown("""<style>
-        [data-testid="stSidebar"] {display:none!important}
-        [data-testid="collapsedControl"] {display:none!important}
-        .stApp {background: linear-gradient(135deg, #1B3A6B 0%, #0F2347 50%, #1A7A5E 100%) !important;}
-        [data-testid="stAppViewContainer"] {background: transparent !important;}
-        .main {background: transparent !important;}
+        [data-testid="stSidebar"]{display:none!important}
+        [data-testid="collapsedControl"]{display:none!important}
+        .stApp{background:linear-gradient(160deg,#1B3A6B 0%,#0D1F3C 55%,#0F4A38 100%)!important}
+        [data-testid="stAppViewContainer"]>.main{background:transparent!important}
+        [data-testid="stAppViewContainer"]>.main>.block-container{
+            max-width:420px!important;padding:5rem 1rem 1rem!important;margin:0 auto!important}
+        .stTextInput>div>div>input{
+            background:rgba(255,255,255,0.1)!important;
+            border:1px solid rgba(255,255,255,0.2)!important;
+            color:white!important;border-radius:10px!important}
+        .stTextInput>div>div>input::placeholder{color:rgba(255,255,255,0.45)!important}
+        .stButton>button{
+            background:#1A7A5E!important;border-radius:10px!important;
+            font-weight:700!important;font-size:14px!important;padding:12px!important}
+        .stButton>button:hover{background:#155f48!important}
     </style>""", unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([1, 1.2, 1])
-    with col2:
-        st.markdown("<div style='height:60px'></div>", unsafe_allow_html=True)
-        with st.form("login_form"):
-            st.markdown(f"""
-            <div style="text-align:center;padding:24px 0 20px">
-                <svg width="52" height="52" viewBox="0 0 64 64" fill="none">
-                    <ellipse cx="32" cy="32" rx="27" ry="10.5" stroke="{GREEN}" stroke-width="2" fill="none"/>
-                    <ellipse cx="32" cy="32" rx="27" ry="10.5" stroke="{GREEN}" stroke-width="2" fill="none" transform="rotate(60 32 32)"/>
-                    <ellipse cx="32" cy="32" rx="27" ry="10.5" stroke="{GREEN}" stroke-width="2" fill="none" transform="rotate(120 32 32)"/>
-                    <circle cx="32" cy="32" r="5.5" fill="{GREEN}"/>
-                    <circle cx="32" cy="32" r="2.5" fill="white"/>
-                </svg>
-                <div style="font-size:26px;font-weight:800;color:{NAVY};letter-spacing:-0.5px;margin-top:10px">
-                    Núcleo <span style="color:{GREEN}">Crédito</span>
-                </div>
-                <div style="font-size:12px;color:#94A3B8;font-style:italic;margin-top:4px;margin-bottom:24px">
-                    No centro da sua vida financeira.
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            username = st.text_input("Usuário", placeholder="seu usuário", label_visibility="collapsed")
-            password = st.text_input("Senha", type="password", placeholder="••••••••", label_visibility="collapsed")
-            submitted = st.form_submit_button("Entrar", use_container_width=True)
+    st.markdown(f"""
+    <div style="text-align:center;margin-bottom:32px">
+        <svg width="60" height="60" viewBox="0 0 64 64" fill="none" style="margin-bottom:12px">
+            <ellipse cx="32" cy="32" rx="27" ry="10.5" stroke="#1A7A5E" stroke-width="2" fill="none"/>
+            <ellipse cx="32" cy="32" rx="27" ry="10.5" stroke="#1A7A5E" stroke-width="2" fill="none" transform="rotate(60 32 32)"/>
+            <ellipse cx="32" cy="32" rx="27" ry="10.5" stroke="#1A7A5E" stroke-width="2" fill="none" transform="rotate(120 32 32)"/>
+            <circle cx="32" cy="32" r="5.5" fill="#1A7A5E"/>
+            <circle cx="32" cy="32" r="2.5" fill="white"/>
+        </svg>
+        <div style="font-size:28px;font-weight:800;color:white;letter-spacing:-0.5px">
+            Núcleo <span style="color:#4ADE80">Crédito</span>
+        </div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.5);font-style:italic;margin-top:6px">
+            No centro da sua vida financeira.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-        st.markdown(f"<p style='text-align:center;font-size:10px;color:#94A3B8;margin-top:12px'>🔒 Dados criptografados · LGPD Compliant</p>", unsafe_allow_html=True)
+    with st.form("login_form"):
+        username = st.text_input("Usuário", placeholder="seu usuário", label_visibility="collapsed")
+        password = st.text_input("Senha", type="password", placeholder="••••••••", label_visibility="collapsed")
+        submitted = st.form_submit_button("Entrar", use_container_width=True)
+
+    st.markdown("<p style='text-align:center;font-size:10px;color:rgba(255,255,255,0.3);margin-top:12px'>🔒 Dados criptografados · LGPD Compliant</p>", unsafe_allow_html=True)
 
     if submitted:
         if check_pwd(username, password):
@@ -694,8 +701,7 @@ if not st.session_state.logged_in:
             st.session_state.uname     = USERS[username.lower()]["name"]
             st.rerun()
         else:
-            with col2:
-                st.error("Usuário ou senha incorretos.")
+            st.error("Usuário ou senha incorretos.")
     st.stop()
 
 # ── SIDEBAR ───────────────────────────────────────────────────────────────────
@@ -819,7 +825,7 @@ if "Dashboard" in menu:
         ]
     ):
         with col:
-            st.markdown(kpi_html(lbl, val, sub, cor), unsafe_allow_html=True)
+            kpi_html(lbl, val, sub, cor)
 
     st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
@@ -1112,9 +1118,9 @@ elif "Contratos" in menu:
     if not dfc.empty:
         tv = dfc["valor"].sum()
         c1, c2, c3 = st.columns(3)
-        with c1: st.markdown(kpi_html("Carteira Total",     fmt(tv),           "",        "navy"), unsafe_allow_html=True)
-        with c2: st.markdown(kpi_html("Comissão Estimada",  fmt(tv*0.03),      "3%",      "green"), unsafe_allow_html=True)
-        with c3: st.markdown(kpi_html("Contratos Ativos",   len(dfc),          "",        "green"), unsafe_allow_html=True)
+        with c1: kpi_html("Carteira Total",     fmt(tv),           "",        "navy")
+        with c2: kpi_html("Comissão Estimada",  fmt(tv*0.03),      "3%",      "green")
+        with c3: kpi_html("Contratos Ativos",   len(dfc),          "",        "green")
         st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
     with st.expander("➕ Novo Contrato"):
@@ -1286,10 +1292,10 @@ elif "Alertas" in menu:
     ph  = df[df["dias"].notna() & (df["dias"].astype(float)<=2)]
 
     c1,c2,c3,c4 = st.columns(4)
-    with c1: st.markdown(kpi_html("Prioridade Alta", len(opp), "margem>R$300", "green"), unsafe_allow_html=True)
-    with c2: st.markdown(kpi_html("Atenção",         len(bx),  "margem baixa", "yellow"), unsafe_allow_html=True)
-    with c3: st.markdown(kpi_html("Sem Margem",      len(sm),  "portabilidade","red"), unsafe_allow_html=True)
-    with c4: st.markdown(kpi_html("INSS Hoje/Amanhã",len(ph),  "urgente","yellow" if len(ph)>0 else "navy"), unsafe_allow_html=True)
+    with c1: kpi_html("Prioridade Alta", len(opp), "margem>R$300", "green")
+    with c2: kpi_html("Atenção",         len(bx),  "margem baixa", "yellow")
+    with c3: kpi_html("Sem Margem",      len(sm),  "portabilidade","red")
+    with c4: kpi_html("INSS Hoje/Amanhã",len(ph),  "urgente","yellow" if len(ph)>0 else "navy")
 
     st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
@@ -1405,9 +1411,9 @@ elif "Email" in menu:
     dce = df[df["email"].notna() & (df["email"] != "")] if not df.empty else pd.DataFrame()
 
     c1, c2, c3 = st.columns(3)
-    with c1: st.markdown(kpi_html("Com Email",   len(dce),  "",             "navy"), unsafe_allow_html=True)
-    with c2: st.markdown(kpi_html("Envios/Dia",  "300",     "plano gratuito","green"), unsafe_allow_html=True)
-    with c3: st.markdown(kpi_html("Custo Mensal","R$ 0,00", "Brevo free",   "green"), unsafe_allow_html=True)
+    with c1: kpi_html("Com Email",   len(dce),  "",             "navy")
+    with c2: kpi_html("Envios/Dia",  "300",     "plano gratuito","green")
+    with c3: kpi_html("Custo Mensal","R$ 0,00", "Brevo free",   "green")
 
     st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
     t1, t2, t3 = st.tabs(["📅 Calendário INSS", "💡 Dica Financeira", "📣 Campanha Livre"])
