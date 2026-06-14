@@ -852,7 +852,7 @@ if "Dashboard" in menu:
 elif "Clientes" in menu:
     page_header("👥", "Gestão de Clientes", "Base segura com dados criptografados — LGPD")
 
-    with st.expander("➕ Cadastrar Novo Cliente"):
+    with st.expander("📋 Cadastrar Novo Cliente"):
         with st.form("form_cli", clear_on_submit=True):
             c1, c2 = st.columns(2)
             with c1:
@@ -982,7 +982,7 @@ elif "Clientes" in menu:
 elif "Leads" in menu:
     page_header("📋", "Pipeline de Leads", "Funil de vendas visual — Kanban")
 
-    with st.expander("➕ Novo Lead"):
+    with st.expander("📋 Novo Lead"):
         with st.form("form_lead", clear_on_submit=True):
             c1, c2 = st.columns(2)
             with c1:
@@ -1055,7 +1055,7 @@ elif "Contratos" in menu:
         with c3: kpi_html("Contratos Ativos",   len(dfc),          "",        "green")
         st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
-    with st.expander("➕ Novo Contrato"):
+    with st.expander("📋 Novo Contrato"):
         if df_cli.empty:
             st.warning("Cadastre um cliente primeiro.")
         else:
@@ -1303,6 +1303,25 @@ elif "Alertas" in menu:
 elif "Agenda" in menu:
     page_header("📅", "Agenda de Follow-ups", "Seus compromissos e lembretes de contato")
 
+    # Form para novo agendamento direto na Agenda
+    df_cli_ag = load_clientes()
+    if not df_cli_ag.empty:
+        with st.expander("📋 Agendar Novo Follow-up"):
+            with st.form("form_agenda_nova", clear_on_submit=True):
+                cli_ag = {r["nome"]: r["id"] for _, r in df_cli_ag.iterrows()}
+                c1, c2 = st.columns(2)
+                with c1:
+                    cli_sel_ag = st.selectbox("Cliente", list(cli_ag.keys()))
+                    data_ag = st.date_input("Data do Follow-up", value=date.today() + timedelta(days=1))
+                with c2:
+                    motivo_ag = st.text_area("Motivo / Observação", height=80)
+                if st.form_submit_button("📅 Agendar Follow-up", use_container_width=True):
+                    ins_fu({"cliente_id": cli_ag[cli_sel_ag], "data_followup": str(data_ag), "motivo": motivo_ag})
+                    st.success(f"✅ Follow-up agendado para {data_ag.strftime('%d/%m/%Y')}!")
+                    st.rerun()
+    else:
+        st.info("Cadastre clientes primeiro para poder agendar follow-ups.")
+
     dfa2 = load_fu()
     if not dfa2.empty:
         dfa2["data_followup"] = pd.to_datetime(dfa2["data_followup"]).dt.date
@@ -1338,6 +1357,22 @@ elif "Agenda" in menu:
 # ═══ EMAIL MARKETING ═══
 elif "Email" in menu:
     page_header("📧", "Email Marketing", "Campanhas via Brevo — 300 emails/dia gratuitos")
+
+    st.markdown("""
+    <div style="background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);
+        border-radius:10px;padding:12px 16px;margin-bottom:16px">
+        <div style="color:#FCD34D;font-size:13px;font-weight:700;margin-bottom:4px">
+            ⚠️ Configuração necessária para envio de emails
+        </div>
+        <div style="color:rgba(255,255,255,0.6);font-size:12px;line-height:1.6">
+            Para os emails chegarem, você precisa verificar o domínio/email remetente no Brevo:<br>
+            1. Acesse <b>app.brevo.com</b> → Configurações → Remetentes e domínios<br>
+            2. Adicione e verifique: <b>nucleocastelo.credito@gmail.com</b><br>
+            3. Clique no link de verificação que o Brevo enviar para esse email<br>
+            Sem isso, os emails são rejeitados silenciosamente.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     df = load_clientes()
     dce = df[df["email"].notna() & (df["email"] != "")] if not df.empty else pd.DataFrame()
