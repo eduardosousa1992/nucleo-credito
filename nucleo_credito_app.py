@@ -33,13 +33,13 @@ html, body, [class*="css"] {{
 
 /* ── Fundo geral ── */
 .stApp {{
-    background: #EBF0F8;
+    background: #D6E0F0;
 }}
 [data-testid="stAppViewContainer"] > .main {{
-    background: #EBF0F8;
+    background: #D6E0F0;
 }}
 [data-testid="stAppViewContainer"] {{
-    background: #EBF0F8;
+    background: #D6E0F0;
 }}
 /* ── Área de conteúdo principal ── */
 [data-testid="stAppViewContainer"] > .main {{
@@ -86,13 +86,16 @@ footer {{ display: none !important; }}
 /* ── SIDEBAR ── */
 [data-testid="stSidebar"] {{
     background: linear-gradient(180deg, #1B3A6B 0%, #0F2347 100%) !important;
-    min-width: 220px !important;
-    max-width: 220px !important;
+    min-width: 240px !important;
+    max-width: 240px !important;
     border-right: none !important;
 }}
 [data-testid="stSidebar"] > div:first-child {{
     padding: 0 !important;
     background: transparent !important;
+}}
+section[data-testid="stSidebar"] {{
+    background: linear-gradient(180deg, #1B3A6B 0%, #0F2347 100%) !important;
 }}
 
 /* Botão hamburguer nativo */
