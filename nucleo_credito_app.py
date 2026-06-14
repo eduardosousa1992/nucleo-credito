@@ -33,10 +33,13 @@ html, body, [class*="css"] {{
 
 /* ── Fundo geral ── */
 .stApp {{
-    background: #E8EDF5;
+    background: #EBF0F8;
 }}
 [data-testid="stAppViewContainer"] > .main {{
-    background: #E8EDF5;
+    background: #EBF0F8;
+}}
+[data-testid="stAppViewContainer"] {{
+    background: #EBF0F8;
 }}
 /* ── Área de conteúdo principal ── */
 [data-testid="stAppViewContainer"] > .main {{
@@ -92,25 +95,10 @@ footer {{ display: none !important; }}
     background: transparent !important;
 }}
 
-/* Botão hamburguer nativo - SEMPRE VISÍVEL */
+/* Botão hamburguer nativo */
 [data-testid="collapsedControl"] {{
     color: white !important;
     background: {NAVY} !important;
-    border-radius: 0 8px 8px 0 !important;
-    position: fixed !important;
-    top: 50% !important;
-    left: 0 !important;
-    z-index: 9999 !important;
-    width: 28px !important;
-    height: 48px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    box-shadow: 2px 0 8px rgba(0,0,0,0.15) !important;
-}}
-[data-testid="collapsedControl"]:hover {{
-    background: {GREEN} !important;
-    width: 32px !important;
 }}
 
 /* Radio do menu lateral */
@@ -123,34 +111,35 @@ footer {{ display: none !important; }}
     gap: 2px !important;
     padding: 8px 12px !important;
 }}
-[data-testid="stSidebar"] .stRadio div[role="radiogroup"] label {{
-    display: flex !important;
-    align-items: center !important;
-    padding: 10px 14px !important;
-    border-radius: 10px !important;
-    color: rgba(255,255,255,0.75) !important;
+[data-testid="stSidebar"] .stRadio label {{
+    color: rgba(255,255,255,0.8) !important;
     font-size: 13px !important;
     font-weight: 500 !important;
+    padding: 8px 14px !important;
+    border-radius: 8px !important;
+    display: block !important;
     cursor: pointer !important;
     transition: all 0.15s !important;
-    margin: 0 !important;
 }}
-[data-testid="stSidebar"] .stRadio div[role="radiogroup"] label:hover {{
-    background: rgba(255,255,255,0.12) !important;
+[data-testid="stSidebar"] .stRadio label:hover {{
+    background: rgba(255,255,255,0.1) !important;
     color: white !important;
 }}
-[data-testid="stSidebar"] .stRadio div[role="radiogroup"] label[data-checked="true"] {{
-    background: rgba(255,255,255,0.18) !important;
-    color: white !important;
-    font-weight: 600 !important;
+[data-testid="stSidebar"] .stRadio [data-baseweb="radio"] {{
+    background: transparent !important;
 }}
-[data-testid="stSidebar"] .stRadio input[type="radio"] {{
+[data-testid="stSidebar"] .stRadio [data-baseweb="radio"] > div:first-child {{
     display: none !important;
 }}
-[data-testid="stSidebar"] .stRadio div[role="radiogroup"] p {{
-    color: inherit !important;
+[data-testid="stSidebar"] .stRadio p {{
+    color: rgba(255,255,255,0.8) !important;
     font-size: 13px !important;
     margin: 0 !important;
+}}
+[data-testid="stSidebar"] .stRadio [aria-checked="true"] label {{
+    background: rgba(255,255,255,0.15) !important;
+    color: white !important;
+    font-weight: 700 !important;
 }}
 
 /* ── CARDS KPI ── */
