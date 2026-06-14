@@ -84,15 +84,32 @@ footer {{ display: none !important; }}
 .stDeployButton {{ display: none !important; }}
 
 /* ── SIDEBAR ── */
-[data-testid="stSidebar"] {{
+/* SIDEBAR - força visível em todos os tamanhos */
+[data-testid="stSidebar"],
+section[data-testid="stSidebar"] {{
     background: linear-gradient(180deg, #1B3A6B 0%, #0F2347 100%) !important;
     min-width: 240px !important;
     max-width: 240px !important;
+    width: 240px !important;
     border-right: none !important;
+    transform: none !important;
+    display: flex !important;
+    flex-shrink: 0 !important;
 }}
 [data-testid="stSidebar"] > div:first-child {{
     padding: 0 !important;
     background: transparent !important;
+    width: 240px !important;
+}}
+/* Override Streamlit mobile breakpoint */
+@media (max-width: 992px) {{
+    [data-testid="stSidebar"] {{
+        display: flex !important;
+        transform: none !important;
+        position: relative !important;
+        width: 240px !important;
+        min-width: 240px !important;
+    }}
 }}
 section[data-testid="stSidebar"] {{
     background: linear-gradient(180deg, #1B3A6B 0%, #0F2347 100%) !important;
@@ -710,11 +727,11 @@ if not st.session_state.logged_in:
             st.error("Usuário ou senha incorretos.")
     st.stop()
 
-# ── SIDEBAR ───────────────────────────────────────────────────────────────────
+# ── NAVEGAÇÃO ─────────────────────────────────────────────────────────────────
+# Sidebar para desktop
 with st.sidebar:
-    # Logo
     st.markdown(f"""
-    <div style="padding:24px 16px 16px;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:8px">
+    <div style="padding:24px 16px 20px;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:8px">
         <div style="display:flex;align-items:center;gap:10px">
             <svg width="32" height="32" viewBox="0 0 64 64" fill="none">
                 <ellipse cx="32" cy="32" rx="27" ry="10.5" stroke="{GREEN}" stroke-width="2" fill="none"/>
@@ -724,14 +741,13 @@ with st.sidebar:
                 <circle cx="32" cy="32" r="2.5" fill="white"/>
             </svg>
             <div>
-                <div style="color:white;font-size:15px;font-weight:800;letter-spacing:-0.3px">Núcleo Crédito</div>
+                <div style="color:white;font-size:15px;font-weight:800">Núcleo Crédito</div>
                 <div style="color:rgba(255,255,255,0.4);font-size:9px;font-style:italic">No centro da sua vida financeira.</div>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # Menu navegação
     menu = st.radio(
         "Navegação",
         options=[
@@ -748,26 +764,19 @@ with st.sidebar:
         label_visibility="collapsed"
     )
 
-    # Rodapé da sidebar
     st.markdown(f"""
-    <div style="position:fixed;bottom:0;left:0;width:220px;padding:16px;border-top:1px solid rgba(255,255,255,0.08)">
-        <div style="display:flex;align-items:center;gap:8px">
-            <div style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:12px">
-                {st.session_state.uname[0]}
-            </div>
-            <div>
-                <div style="color:white;font-size:12px;font-weight:600">{st.session_state.uname.split()[0]}</div>
-                <div style="color:rgba(255,255,255,0.4);font-size:10px">Admin</div>
-            </div>
-        </div>
+    <div style="position:fixed;bottom:0;left:0;width:240px;padding:14px 16px;
+        border-top:1px solid rgba(255,255,255,0.08);background:linear-gradient(180deg,#1B3A6B,#0F2347)">
+        <div style="color:white;font-size:12px;font-weight:600">{st.session_state.uname.split()[0]}</div>
+        <div style="color:rgba(255,255,255,0.4);font-size:10px">Administrador</div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("<div style='height:40px'></div>", unsafe_allow_html=True)
-
+    st.markdown("<div style='height:60px'></div>", unsafe_allow_html=True)
     if st.button("🚪 Sair", key="logout"):
         st.session_state.logged_in = False
         st.rerun()
+
 
 # ── PÁGINAS ───────────────────────────────────────────────────────────────────
 
