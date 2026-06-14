@@ -51,7 +51,7 @@ footer {{ display: none !important; }}
 #MainMenu {{ display: none !important; }}
 .stDeployButton {{ display: none !important; }}
 
-/* ── SIDEBAR PREMIUM ── */
+/* ── SIDEBAR ESTÁTICA — NUNCA SOME ── */
 [data-testid="stSidebar"],
 section[data-testid="stSidebar"] {{
     background: linear-gradient(180deg, #0D1B35 0%, #0A1628 100%) !important;
@@ -59,6 +59,10 @@ section[data-testid="stSidebar"] {{
     min-width: 240px !important;
     max-width: 240px !important;
     width: 240px !important;
+    transform: translateX(0px) !important;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
 }}
 [data-testid="stSidebar"] > div:first-child {{
     padding: 0 !important;
@@ -67,15 +71,21 @@ section[data-testid="stSidebar"] {{
 @media (max-width: 992px) {{
     [data-testid="stSidebar"] {{
         display: flex !important;
-        transform: none !important;
+        transform: translateX(0px) !important;
         position: relative !important;
         width: 240px !important;
         min-width: 240px !important;
+        visibility: visible !important;
     }}
 }}
-[data-testid="collapsedControl"] {{
-    color: white !important;
-    background: #0D1B35 !important;
+/* Oculta botão colapsar sidebar */
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapseButton"],
+button[title="Close sidebar"],
+button[title="Collapse sidebar"] {{
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
 }}
 
 /* ── SIDEBAR RADIO MENU ── */
@@ -852,7 +862,7 @@ if "Dashboard" in menu:
 elif "Clientes" in menu:
     page_header("👥", "Gestão de Clientes", "Base segura com dados criptografados — LGPD")
 
-    with st.expander("📋 Cadastrar Novo Cliente"):
+    with st.expander("+ Cadastrar Novo Cliente"):
         with st.form("form_cli", clear_on_submit=True):
             c1, c2 = st.columns(2)
             with c1:
@@ -982,7 +992,7 @@ elif "Clientes" in menu:
 elif "Leads" in menu:
     page_header("📋", "Pipeline de Leads", "Funil de vendas visual — Kanban")
 
-    with st.expander("📋 Novo Lead"):
+    with st.expander("+ Novo Lead"):
         with st.form("form_lead", clear_on_submit=True):
             c1, c2 = st.columns(2)
             with c1:
@@ -1055,7 +1065,7 @@ elif "Contratos" in menu:
         with c3: kpi_html("Contratos Ativos",   len(dfc),          "",        "green")
         st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
-    with st.expander("📋 Novo Contrato"):
+    with st.expander("+ Novo Contrato"):
         if df_cli.empty:
             st.warning("Cadastre um cliente primeiro.")
         else:
@@ -1306,7 +1316,7 @@ elif "Agenda" in menu:
     # Form para novo agendamento direto na Agenda
     df_cli_ag = load_clientes()
     if not df_cli_ag.empty:
-        with st.expander("📋 Agendar Novo Follow-up"):
+        with st.expander("+ Agendar Novo Follow-up"):
             with st.form("form_agenda_nova", clear_on_submit=True):
                 cli_ag = {r["nome"]: r["id"] for _, r in df_cli_ag.iterrows()}
                 c1, c2 = st.columns(2)
