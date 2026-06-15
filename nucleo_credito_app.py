@@ -921,7 +921,25 @@ elif "Clientes" in menu:
             bm = badge("Oportunidade","green") if m > 300 else badge("Sem margem","red") if m <= 0 else badge("Margem baixa","yellow")
             bs = badge(row["status"], "blue")
 
-            with st.expander(f"{row['nome']}  —  Score {row['score']}%  —  {fmt(m)}"):
+            # Botão toggle para expandir cliente
+            btn_key = f"show_cli_{row['id']}"
+            col_btn, col_info = st.columns([3, 1])
+            with col_btn:
+                st.markdown(
+                    f'<div style="background:#0D1B35;border:1px solid rgba(255,255,255,0.08);'
+                    f'border-radius:10px;padding:10px 16px;cursor:pointer;margin-bottom:6px">'
+                    f'<span style="color:white;font-weight:600;font-size:13px">{row["nome"]}</span>'
+                    f'<span style="color:rgba(255,255,255,0.4);font-size:11px;margin-left:12px">'
+                    f'Score {row["score"]}%  ·  {fmt(m)}</span></div>',
+                    unsafe_allow_html=True
+                )
+            with col_info:
+                if st.button("Ver detalhes" if not st.session_state.get(btn_key) else "Fechar",
+                             key=f"btn_{btn_key}"):
+                    st.session_state[btn_key] = not st.session_state.get(btn_key, False)
+                    st.rerun()
+
+            if st.session_state.get(btn_key, False):
                 ca, cb = st.columns([2, 1])
 
                 with ca:
