@@ -542,8 +542,18 @@ def send_email(to_email, to_name, subject, html):
             sender={"email": SENDER_EMAIL, "name": SENDER_NAME},
             subject=subject, html_content=html
         ))
-        return True
-    except: return False
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+def send_email_safe(to_email, to_name, subject, html):
+    """Wrapper com debug visível"""
+    if not BREVO_KEY or BREVO_KEY == "":
+        return False, "BREVO_API_KEY não configurada nos Secrets"
+    if not to_email:
+        return False, "Email do destinatário vazio"
+    ok, err = send_email(to_email, to_name, subject, html)
+    return ok, err
 
 # ── AUTH ──────────────────────────────────────────────────────────────────────
 USERS = {
@@ -862,7 +872,9 @@ if "Dashboard" in menu:
 elif "Clientes" in menu:
     page_header("👥", "Gestão de Clientes", "Base segura com dados criptografados — LGPD")
 
-    with st.expander("+ Cadastrar Novo Cliente"):
+    if st.button("＋ Cadastrar Novo Cliente", key="btn_new_cli"):
+        st.session_state["show_form_cli"] = not st.session_state.get("show_form_cli", False)
+    if st.session_state.get("show_form_cli", False):
         with st.form("form_cli", clear_on_submit=True):
             c1, c2 = st.columns(2)
             with c1:
@@ -909,7 +921,7 @@ elif "Clientes" in menu:
             bm = badge("Oportunidade","green") if m > 300 else badge("Sem margem","red") if m <= 0 else badge("Margem baixa","yellow")
             bs = badge(row["status"], "blue")
 
-            with st.expander(f"{'🔥' if row['score']>=75 else '⚡' if row['score']>=55 else '●'} {row['nome']}  ·  Score {row['score']}%  ·  {fmt(m)}"):
+            with st.expander(f"{row['nome']}  —  Score {row['score']}%  —  {fmt(m)}"):
                 ca, cb = st.columns([2, 1])
 
                 with ca:
@@ -966,10 +978,11 @@ elif "Clientes" in menu:
                         if st.button(f"📧 Enviar INSS", key=f"em_{row['id']}"):
                             pg_d, dias_d = prox_pg(row["cpf_raw"])
                             html = f'<div style="font-family:Inter,sans-serif;max-width:500px;margin:0 auto"><div style="background:{NAVY};padding:24px;border-radius:12px 12px 0 0"><h2 style="color:white;margin:0;font-size:18px">⚛ Núcleo Crédito</h2></div><div style="background:white;padding:24px;border-radius:0 0 12px 12px"><p style="font-size:15px">Olá, <b>{row["nome"].split()[0]}</b>!</p><p>Seu próximo pagamento INSS: <b style="color:{GREEN};font-size:18px">{pg_d.strftime("%d/%m/%Y") if pg_d else "Em breve"}</b></p><a href="https://wa.me/5511952723015" style="display:inline-block;background:{GREEN};color:white;padding:10px 24px;border-radius:99px;text-decoration:none;font-weight:600">💬 Falar no WhatsApp</a></div></div>'
-                            if send_email(row["email"], row["nome"], "Seu INSS — Núcleo Crédito", html):
+                            ok_e, err_e = send_email_safe(row["email"], row["nome"], "Seu INSS — Núcleo Crédito", html)
+                            if ok_e:
                                 st.success("✅ Enviado!")
                             else:
-                                st.error("Erro no envio.")
+                                st.error(f"Erro: {err_e}")
 
                     if st.button(f"🗑 Remover cliente", key=f"del_{row['id']}"):
                         del_cli(row["id"])
@@ -992,7 +1005,9 @@ elif "Clientes" in menu:
 elif "Leads" in menu:
     page_header("📋", "Pipeline de Leads", "Funil de vendas visual — Kanban")
 
-    with st.expander("+ Novo Lead"):
+    if st.button("＋ Novo Lead", key="btn_new_lead"):
+        st.session_state["show_form_lead"] = not st.session_state.get("show_form_lead", False)
+    if st.session_state.get("show_form_lead", False):
         with st.form("form_lead", clear_on_submit=True):
             c1, c2 = st.columns(2)
             with c1:
@@ -1065,7 +1080,9 @@ elif "Contratos" in menu:
         with c3: kpi_html("Contratos Ativos",   len(dfc),          "",        "green")
         st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
-    with st.expander("+ Novo Contrato"):
+    if st.button("＋ Novo Contrato", key="btn_new_ct"):
+        st.session_state["show_form_ct"] = not st.session_state.get("show_form_ct", False)
+    if st.session_state.get("show_form_ct", False):
         if df_cli.empty:
             st.warning("Cadastre um cliente primeiro.")
         else:
@@ -1316,7 +1333,9 @@ elif "Agenda" in menu:
     # Form para novo agendamento direto na Agenda
     df_cli_ag = load_clientes()
     if not df_cli_ag.empty:
-        with st.expander("+ Agendar Novo Follow-up"):
+        if st.button("＋ Agendar Novo Follow-up", key="btn_new_fu"):
+            st.session_state["show_form_fu"] = not st.session_state.get("show_form_fu", False)
+        if st.session_state.get("show_form_fu", False):
             with st.form("form_agenda_nova", clear_on_submit=True):
                 cli_ag = {r["nome"]: r["id"] for _, r in df_cli_ag.iterrows()}
                 c1, c2 = st.columns(2)
@@ -1406,7 +1425,8 @@ elif "Email" in menu:
                 for _, row in dce[dce["nome"].isin(sel)].iterrows():
                     pg_d, dias_d = prox_pg(row["cpf_raw"])
                     html = f'<div style="font-family:Inter,sans-serif;max-width:560px;margin:0 auto"><div style="background:{NAVY};padding:24px;border-radius:12px 12px 0 0"><h2 style="color:white;margin:0">⚛ Núcleo Crédito</h2></div><div style="background:white;padding:28px;border-radius:0 0 12px 12px"><p style="font-size:16px">Olá, <b>{row["nome"].split()[0]}</b>!</p><div style="background:#F0FDF4;border-radius:10px;padding:16px;text-align:center;margin:16px 0"><div style="font-size:11px;color:#16A34A;font-weight:600;text-transform:uppercase">Próximo Pagamento INSS</div><div style="font-size:28px;font-weight:800;color:{NAVY}">{pg_d.strftime("%d/%m/%Y") if pg_d else "Em breve"}</div>{f"<div style=color:#64748B;font-size:13px>Em {dias_d} dia(s)</div>" if dias_d is not None else ""}</div><a href="https://wa.me/5511952723015" style="display:inline-block;background:{GREEN};color:white;padding:12px 28px;border-radius:99px;text-decoration:none;font-weight:600">💬 Falar no WhatsApp</a></div></div>'
-                    if send_email(row["email"], row["nome"], "Seu INSS — Núcleo Crédito", html): env += 1
+                    ok_e, err_e = send_email_safe(row["email"], row["nome"], "Seu INSS — Núcleo Crédito", html)
+                    if ok_e: env += 1
                 st.success(f"✅ {env} email(s) enviado(s)!")
 
     with t2:
@@ -1425,7 +1445,8 @@ elif "Email" in menu:
                 env2 = 0
                 for _, row in dce[dce["nome"].isin(sel2)].iterrows():
                     html = f'<div style="font-family:Inter,sans-serif;max-width:560px;margin:0 auto"><div style="background:{NAVY};padding:24px;border-radius:12px 12px 0 0"><h2 style="color:white;margin:0">⚛ Núcleo Crédito</h2></div><div style="background:white;padding:28px;border-radius:0 0 12px 12px"><p>Olá, <b>{row["nome"].split()[0]}</b>!</p><div style="border-left:4px solid {GREEN};padding:14px 18px;background:#F8FFFE;border-radius:0 8px 8px 0;margin:16px 0"><b style="color:{NAVY}">{ds}</b><p style="color:#475569;margin-top:8px;line-height:1.6">{db}</p></div><a href="https://wa.me/5511952723015" style="background:{GREEN};color:white;padding:12px 28px;border-radius:99px;text-decoration:none;font-weight:600">💬 Tirar dúvidas</a></div></div>'
-                    if send_email(row["email"], row["nome"], f"💡 {ds} — Núcleo Crédito", html): env2 += 1
+                    ok_e, err_e = send_email_safe(row["email"], row["nome"], f"💡 {ds} — Núcleo Crédito", html)
+                    if ok_e: env2 += 1
                 st.success(f"✅ {env2} email(s) enviado(s)!")
 
     with t3:
@@ -1441,7 +1462,8 @@ elif "Email" in menu:
                     env3 = 0
                     for _, row in dce[dce["nome"].isin(sel3)].iterrows():
                         html = f'<div style="font-family:Inter,sans-serif;max-width:560px;margin:0 auto"><div style="background:{NAVY};padding:24px;border-radius:12px 12px 0 0"><h2 style="color:white;margin:0">⚛ Núcleo Crédito</h2></div><div style="background:white;padding:28px;border-radius:0 0 12px 12px"><p>Olá, <b>{row["nome"].split()[0]}</b>!</p><h3 style="color:{NAVY}">{ct3}</h3><p style="color:#475569;line-height:1.6">{cc3}</p><a href="https://wa.me/5511952723015" style="background:{GREEN};color:white;padding:12px 28px;border-radius:99px;text-decoration:none;font-weight:600">💬 WhatsApp</a></div></div>'
-                        if send_email(row["email"], row["nome"], ca3, html): env3 += 1
+                        ok_e, err_e = send_email_safe(row["email"], row["nome"], ca3, html)
+                    if ok_e: env3 += 1
                     st.success(f"✅ {env3} email(s) enviado(s)!")
 
 # ═══ METAS ═══
