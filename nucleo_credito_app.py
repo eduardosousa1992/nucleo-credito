@@ -738,18 +738,41 @@ with st.sidebar:
         label_visibility="collapsed"
     )
 
-    st.markdown(f"""
-    <div style="position:fixed;bottom:0;left:0;width:240px;padding:14px 16px;
-        border-top:1px solid rgba(255,255,255,0.08);background:linear-gradient(180deg,#1B3A6B,#0F2347)">
-        <div style="color:white;font-size:12px;font-weight:600">{st.session_state.uname.split()[0]}</div>
-        <div style="color:rgba(255,255,255,0.4);font-size:10px">Administrador</div>
-    </div>
-    """, unsafe_allow_html=True)
-
     st.markdown("<div style='height:60px'></div>", unsafe_allow_html=True)
-    if st.button("🚪 Sair", key="logout"):
-        st.session_state.logged_in = False
-        st.rerun()
+
+    # Rodapé com perfil + sair
+    role_label = "Administrador" if st.session_state.get("role") == "admin" else "Operador"
+    role_color = "#4ADE80" if st.session_state.get("role") == "admin" else "#60A5FA"
+    inicial = st.session_state.uname[0].upper()
+
+    col_perfil, col_sair = st.columns([3, 1])
+    with col_perfil:
+        st.markdown(f"""
+        <div style="padding:10px 12px;border-top:1px solid rgba(255,255,255,0.08);
+            display:flex;align-items:center;gap:10px">
+            <div style="width:32px;height:32px;border-radius:50%;
+                background:linear-gradient(135deg,#1A7A5E,#1B3A6B);
+                display:flex;align-items:center;justify-content:center;
+                font-size:13px;font-weight:800;color:white;flex-shrink:0">
+                {inicial}
+            </div>
+            <div>
+                <div style="color:white;font-size:12px;font-weight:700;line-height:1.2">
+                    {st.session_state.uname.split()[0]}
+                </div>
+                <div style="font-size:9px;font-weight:700;color:{role_color};
+                    text-transform:uppercase;letter-spacing:.06em">
+                    {role_label}
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_sair:
+        st.markdown("<div style='padding-top:14px;border-top:1px solid rgba(255,255,255,0.08)'></div>",
+                    unsafe_allow_html=True)
+        if st.button("↪", key="logout", help="Sair do sistema"):
+            st.session_state.logged_in = False
+            st.rerun()
 
 
 # ── PÁGINAS ───────────────────────────────────────────────────────────────────
