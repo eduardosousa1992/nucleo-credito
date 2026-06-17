@@ -88,6 +88,38 @@ button[title="Collapse sidebar"] {{
     pointer-events: none !important;
 }}
 
+/* ── FILE UPLOADER PREMIUM ── */
+[data-testid="stFileUploader"] section {{
+    background: rgba(26,122,94,0.04) !important;
+    border: 1.5px dashed rgba(26,122,94,0.35) !important;
+    border-radius: 12px !important;
+    padding: 16px 20px !important;
+}}
+[data-testid="stFileUploader"] section:hover {{
+    border-color: rgba(26,122,94,0.7) !important;
+    background: rgba(26,122,94,0.08) !important;
+}}
+[data-testid="stFileUploader"] section > button,
+[data-testid="stFileUploaderDropzone"] > button {{
+    background: linear-gradient(135deg, #1A7A5E, #156B51) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 12px !important;
+    padding: 7px 16px !important;
+}}
+[data-testid="stFileUploader"] span,
+[data-testid="stFileUploader"] small {{
+    color: rgba(255,255,255,0.35) !important;
+    font-size: 11px !important;
+}}
+[data-testid="stFileUploader"] label {{
+    color: rgba(255,255,255,0.7) !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+}}
+
 /* ── SIDEBAR RADIO MENU ── */
 [data-testid="stSidebar"] .stRadio > label {{ display: none !important; }}
 [data-testid="stSidebar"] .stRadio label {{
