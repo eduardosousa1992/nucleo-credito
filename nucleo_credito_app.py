@@ -64,79 +64,135 @@ section[data-testid="stSidebar"] {{
     visibility: visible !important;
     opacity: 1 !important;
 }}
+/* Mobile: sidebar colapsável */
+@media (max-width: 768px) {{
+    section[data-testid="stSidebar"] {{
+        min-width: unset !important;
+        max-width: 80vw !important;
+        width: 80vw !important;
+        position: fixed !important;
+        z-index: 999 !important;
+        height: 100vh !important;
+        top: 0 !important;
+        left: 0 !important;
+        transform: translateX(-100%) !important;
+    }}
+    section[data-testid="stSidebar"][aria-expanded="true"] {{
+        transform: translateX(0px) !important;
+    }}
+    [data-testid="stSidebarCollapseButton"] {{
+        display: flex !important;
+        visibility: visible !important;
+        pointer-events: all !important;
+    }}
+    [data-testid="collapsedControl"] {{
+        display: flex !important;
+        visibility: visible !important;
+        pointer-events: all !important;
+        position: fixed !important;
+        top: 12px !important;
+        left: 12px !important;
+        z-index: 1000 !important;
+        background: #1A7A5E !important;
+        border-radius: 8px !important;
+        width: 40px !important;
+        height: 40px !important;
+        align-items: center !important;
+        justify-content: center !important;
+        color: white !important;
+    }}
+    .main .block-container {{
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        max-width: 100vw !important;
+    }}
+    [data-testid="stHorizontalBlock"] {{
+        flex-direction: column !important;
+        gap: 8px !important;
+    }}
+    [data-testid="column"] {{
+        width: 100% !important;
+        min-width: 100% !important;
+    }}
+}}
 [data-testid="stSidebar"] > div:first-child {{
     padding: 0 !important;
     width: 240px !important;
 }}
-@media (max-width: 992px) {{
-    [data-testid="stSidebar"] {{
-        display: flex !important;
-        transform: translateX(0px) !important;
-        position: relative !important;
-        width: 240px !important;
-        min-width: 240px !important;
-        visibility: visible !important;
-    }}
-}}
+
 /* Oculta botão colapsar sidebar */
-[data-testid="collapsedControl"],
-[data-testid="stSidebarCollapseButton"],
-button[title="Close sidebar"],
-button[title="Collapse sidebar"] {{
-    display: none !important;
-    visibility: hidden !important;
-    pointer-events: none !important;
+/* Desktop: esconde botão de colapso */
+@media (min-width: 769px) {{
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapseButton"],
+    button[title="Close sidebar"],
+    button[title="Collapse sidebar"] {{
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+    }}
 }}
 
 /* ── FILE UPLOADER PREMIUM ── */
 [data-testid="stFileUploader"] > label {{
-    color: rgba(255,255,255,0.7) !important;
-    font-size: 12px !important;
-    font-weight: 600 !important;
-    margin-bottom: 6px !important;
-    display: block !important;
+    display: none !important;
 }}
 [data-testid="stFileUploader"] section {{
-    background: rgba(26,122,94,0.04) !important;
-    border: 1.5px dashed rgba(26,122,94,0.4) !important;
+    background: rgba(26,122,94,0.06) !important;
+    border: 1.5px solid rgba(26,122,94,0.3) !important;
     border-radius: 10px !important;
-    padding: 16px !important;
-    text-align: center !important;
+    padding: 6px 10px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 52px !important;
+    height: 52px !important;
     cursor: pointer !important;
 }}
 [data-testid="stFileUploader"] section:hover {{
-    border-color: #1A7A5E !important;
-    background: rgba(26,122,94,0.08) !important;
+    border-color: #4ADE80 !important;
+    background: rgba(74,222,128,0.1) !important;
 }}
 [data-testid="stFileUploader"] section > div {{
     display: flex !important;
-    flex-direction: column !important;
     align-items: center !important;
-    gap: 8px !important;
+    justify-content: center !important;
 }}
 [data-testid="stFileUploader"] section button {{
-    background: #1A7A5E !important;
-    color: white !important;
+    background: transparent !important;
     border: none !important;
-    border-radius: 8px !important;
-    font-weight: 700 !important;
-    font-size: 13px !important;
-    padding: 8px 20px !important;
-    cursor: pointer !important;
-    width: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 36px !important;
+    height: 36px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 }}
 [data-testid="stFileUploader"] section button p {{
-    color: white !important;
-    font-size: 13px !important;
-    margin: 0 !important;
-    font-weight: 700 !important;
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    position: absolute !important;
+}}
+[data-testid="stFileUploader"] section button::after {{
+    content: "📎" !important;
+    font-size: 22px !important;
+    line-height: 1 !important;
 }}
 [data-testid="stFileUploader"] section > div > span {{
     display: none !important;
 }}
 [data-testid="stFileUploader"] section small {{
-    color: rgba(255,255,255,0.3) !important;
-    font-size: 10px !important;
+    display: none !important;
+}}
+[data-testid="stFileUploaderFile"] {{
+    background: rgba(74,222,128,0.06) !important;
+    border: 1px solid rgba(74,222,128,0.2) !important;
+    border-radius: 8px !important;
+    padding: 6px 10px !important;
+    margin-top: 6px !important;
 }}
 
 /* ── SIDEBAR RADIO MENU ── */
@@ -1612,17 +1668,18 @@ elif "Clientes" in menu:
 
                     doc_tipos = ["RG / CNH", "CPF", "Comprovante de Residência", "Extrato INSS / Carta de Concessão", "Contracheque / Holerite", "Proposta Assinada", "Contrato", "Outros"]
 
-                    col_up1, col_up2 = st.columns([1,2])
+                    col_up1, col_up2, col_up3 = st.columns([3,1,2])
                     with col_up1:
                         doc_tipo = st.selectbox("Tipo de documento", doc_tipos,
                             key=f"dtype_{row['id']}")
                     with col_up2:
                         arquivo = st.file_uploader(
-                            "📎 Clique para selecionar ou arraste o arquivo aqui",
-                            type=["pdf","jpg","jpeg","png"],
+                            "x", type=["pdf","jpg","jpeg","png"],
                             key=f"upload_{row['id']}",
-                            label_visibility="visible"
+                            label_visibility="hidden"
                         )
+                    with col_up3:
+                        st.markdown('<div style="padding-top:28px;font-size:11px;color:rgba(255,255,255,0.3)">← clique para anexar</div>', unsafe_allow_html=True)
 
                     if arquivo and sb:
                         if st.button("📎 Salvar documento", key=f"savdoc_{row['id']}", use_container_width=True):
