@@ -89,45 +89,58 @@ button[title="Collapse sidebar"] {{
 }}
 
 /* ── FILE UPLOADER PREMIUM ── */
+[data-testid="stFileUploader"] {{
+    margin-top: 0 !important;
+}}
 [data-testid="stFileUploader"] section {{
     background: rgba(26,122,94,0.04) !important;
     border: 1.5px dashed rgba(26,122,94,0.35) !important;
-    border-radius: 12px !important;
-    padding: 14px 18px !important;
-    display: flex !important;
-    align-items: center !important;
-    gap: 12px !important;
+    border-radius: 10px !important;
+    padding: 12px 16px !important;
+    min-height: 52px !important;
 }}
 [data-testid="stFileUploader"] section:hover {{
-    border-color: rgba(26,122,94,0.7) !important;
-    background: rgba(26,122,94,0.06) !important;
+    border-color: #1A7A5E !important;
+    background: rgba(26,122,94,0.08) !important;
 }}
-[data-testid="stFileUploader"] section > button {{
-    background: linear-gradient(135deg, #1A7A5E, #156B51) !important;
+[data-testid="stFileUploader"] section > input[type="file"] {{
+    opacity: 0 !important;
+    position: absolute !important;
+}}
+[data-testid="stFileUploader"] section button[data-testid="baseButton-secondary"] {{
+    background: #1A7A5E !important;
     color: white !important;
     border: none !important;
-    border-radius: 8px !important;
-    font-weight: 700 !important;
+    border-radius: 7px !important;
+    font-weight: 600 !important;
     font-size: 12px !important;
-    padding: 8px 16px !important;
-    min-width: 100px !important;
-    white-space: nowrap !important;
+    padding: 6px 14px !important;
 }}
-[data-testid="stFileUploader"] section > button::before {{
-    content: "📎 Escolher arquivo" !important;
+[data-testid="stFileUploader"] section button[data-testid="baseButton-secondary"] p {{
+    color: white !important;
+    font-size: 12px !important;
 }}
-[data-testid="stFileUploader"] section > button span {{
+[data-testid="stFileUploader"] section > div > span {{
     display: none !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
 }}
-[data-testid="stFileUploader"] section > div > span:first-child {{
-    display: none !important;
+[data-testid="stFileUploader"] section > div {{
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
 }}
-[data-testid="stFileUploader"] section > div > small {{
-    color: rgba(255,255,255,0.35) !important;
+[data-testid="stFileUploader"] section small {{
+    color: rgba(255,255,255,0.3) !important;
     font-size: 10px !important;
 }}
-[data-testid="stFileUploader"] label {{
-    display: none !important;
+[data-testid="stFileUploaderFile"] {{
+    background: rgba(255,255,255,0.05) !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+    margin-top: 8px !important;
 }}
 
 /* ── SIDEBAR RADIO MENU ── */
@@ -1615,13 +1628,14 @@ elif "Clientes" in menu:
                     col_up1, col_up2 = st.columns([1,2])
                     with col_up1:
                         doc_tipo = st.selectbox("Tipo de documento", doc_tipos,
-                            key=f"dtype_{row['id']}", label_visibility="visible")
+                            key=f"dtype_{row['id']}")
                     with col_up2:
+                        st.markdown('<p style="font-size:12px;color:rgba(255,255,255,0.6);font-weight:600;margin:0 0 6px">Selecionar arquivo</p>', unsafe_allow_html=True)
                         arquivo = st.file_uploader(
-                            "Selecionar arquivo",
+                            "x",
                             type=["pdf","jpg","jpeg","png"],
                             key=f"upload_{row['id']}",
-                            label_visibility="collapsed"
+                            label_visibility="hidden"
                         )
 
                     if arquivo and sb:
@@ -1707,7 +1721,7 @@ elif "Clientes" in menu:
                                 </div>
                             </div>""", unsafe_allow_html=True)
                     else:
-                        st.markdown('<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:16px 0">Nenhum contrato registrado para este cliente.</div>', unsafe_allow_html=True)
+                        st.markdown('<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:16px 0">Nenhum contrato registrado para este cliente. Use a aba Contratos para registrar.</div>', unsafe_allow_html=True)
 
 
     else:
@@ -1741,7 +1755,8 @@ elif "Contratos" in menu:
                 c1, c2 = st.columns(2)
                 with c1:
                     cs  = st.selectbox("Cliente", list(cm.keys()))
-                    bco = st.selectbox("Banco", ["Banco BMG","Banco Safra","Banco PAN","Caixa","BRB","Facta","Itaú Consig."])
+                    bco = st.selectbox("Banco / Instituição", ['001 - Banco do Brasil', '033 - Santander', '104 - Caixa Econômica Federal', '237 - Bradesco', '341 - Itaú Unibanco', '318 - Banco BMG', '074 - Banco Safra', '623 - Banco PAN', '389 - Banco Mercantil do Brasil', '707 - Banco Daycoval', '422 - Banco Safra S.A.', '394 - Banco Bradesco Financiamentos', '743 - Banco Semear', '290 - Parana Banco', '746 - Banco Modal', '047 - Banco Banese', '756 - Bancoob / Sicoob', '748 - Sicredi', '041 - Banrisul', '004 - Banco do Nordeste (BNB)', '021 - Banestes', '037 - Banco do Estado do Pará (Banpará)', '070 - BRB - Banco de Brasília', '085 - Cecred / Ailos', '136 - Unicred', '197 - Stone', '208 - BTG Pactual', '212 - Banco Original', '260 - Nu Pagamentos (Nubank)', '336 - Banco C6', '380 - PicPay', '403 - Cora', '604 - Banco Industrial do Brasil', '633 - Banco Rendimento', '643 - Banco Pine', '652 - Itaú Unibanco Holding', '655 - Votorantim (BV Financeira)', '077 - Banco Inter', '735 - Banco Neon', '739 - BCO Cetelem', '741 - Ribeirão Preto (BRSP)', '745 - Citibank', '329 - QI Tech', '531 - Banco Creditcorp', '274 - Money Plus', '082 - Banco Topázio', '097 - CreditSys', '121 - Banco Agibank', '190 - Servicoop', '461 - Asaas', '509 - Celcoin', '637 - Banco Sofisa', '654 - Banco A.J.Renner', '000 - Outro banco / Instituição'],
+                        help="Digite para pesquisar pelo nome ou código")
                     val = st.number_input("Valor (R$)", min_value=0.0, step=100.0)
                 with c2:
                     pt  = st.number_input("Parcelas", min_value=1, max_value=108, value=36, step=1)
