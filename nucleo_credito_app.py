@@ -525,6 +525,73 @@ def ins_hist(d):   sb.table("historico").insert(d).execute()
 def ins_fu(d):     sb.table("followups").insert(d).execute()
 def ins_ct(d):     sb.table("contratos").insert(d).execute()
 def upd_lead(id, s): sb.table("leads").update({"status": s}).eq("id", id).execute()
+
+def upd_lead_etapa(id, etapa, extra=None):
+    d = {"etapa": etapa, "updated_at": datetime.now().isoformat()}
+    if extra: d.update(extra)
+    sb.table("leads").update(d).eq("id", id).execute()
+
+def load_alertas():
+    if not sb: return pd.DataFrame()
+    try:
+        r = sb.table("alertas").select("*").eq("lido", False).order("criado_em", desc=True).execute()
+        return pd.DataFrame(r.data) if r.data else pd.DataFrame()
+    except: return pd.DataFrame()
+
+def marcar_alerta_lido(id):
+    if sb: sb.table("alertas").update({"lido": True}).eq("id", id).execute()
+
+def gerar_alertas_automaticos(df_cli, df_leads):
+    """Gera alertas automáticos baseados em regras de negócio"""
+    if not sb: return
+    alertas = []
+    agora = datetime.now()
+
+    # Leads parados há mais de 24h
+    if not df_leads.empty and "updated_at" in df_leads.columns:
+        for _, row in df_leads.iterrows():
+            try:
+                upd = pd.to_datetime(row.get("updated_at"))
+                if upd and hasattr(upd, 'tzinfo'):
+                    upd = upd.tz_localize(None) if upd.tzinfo else upd
+                if upd:
+                    horas = (agora - upd).total_seconds() / 3600
+                    etapa = row.get("etapa", row.get("status", ""))
+                    if horas > 48 and etapa not in ["Convertido", "Perdido", "Pago"]:
+                        alertas.append({
+                            "tipo": "lead_parado",
+                            "titulo": f"Lead parado: {row['nome']}",
+                            "descricao": f"Sem atualização há {int(horas)}h — Etapa: {etapa}",
+                            "entidade": "lead",
+                            "entidade_id": int(row["id"]),
+                            "prioridade": "alta" if horas > 96 else "media"
+                        })
+            except: pass
+
+    # Clientes com INSS em 2 dias e margem disponível
+    if not df_cli.empty:
+        for _, row in df_cli.iterrows():
+            try:
+                dias = row.get("dias")
+                if dias is not None and 0 <= float(dias) <= 2 and row.get("margem", 0) > 200:
+                    alertas.append({
+                        "tipo": "inss_oportunidade",
+                        "titulo": f"INSS em {int(dias)} dia(s): {row['nome'].split()[0]}",
+                        "descricao": f"Margem disponível: {fmt(row['margem'])} — Score {row.get('score',0)}%",
+                        "entidade": "cliente",
+                        "entidade_id": int(row["id"]),
+                        "prioridade": "urgente"
+                    })
+            except: pass
+
+    # Inserir apenas alertas novos (evitar duplicatas verificando título)
+    try:
+        existentes = sb.table("alertas").select("titulo").eq("lido", False).execute()
+        titulos_existentes = {r["titulo"] for r in (existentes.data or [])}
+        novos = [a for a in alertas if a["titulo"] not in titulos_existentes]
+        if novos:
+            sb.table("alertas").insert(novos).execute()
+    except: pass
 def del_cli(id):
     for t in ["historico","followups","clientes"]:
         sb.table(t).delete().eq("cliente_id" if t != "clientes" else "id", id).execute()
@@ -1000,411 +1067,601 @@ elif "Clientes" in menu:
                     st.rerun()
 
             if st.session_state.get(btn_key, False):
-                ca, cb = st.columns([2, 1])
+                # ── VISÃO 360° DO CLIENTE ──────────────────────────────────
+                # Header do cliente
+                m = row["margem"]
+                pct_c = row["pct"]
+                bar_c = "#4ADE80" if pct_c<60 else "#FBBF24" if pct_c<90 else "#EF4444"
 
-                with ca:
-                    st.markdown(f"""
-                    <div class="cli-card {cc}">
-                        <div style="font-size:14px;font-weight:700;color:{NAVY}">{row['nome']}</div>
-                        <div style="font-size:11px;color:#64748B;margin:3px 0 8px">{row['tel_d']} &nbsp;·&nbsp; {row['canal']} &nbsp;·&nbsp; {row['interesse']}</div>
-                        <div>{bm} {bs} <span class="badge b-slate">Score {row['score']}%</span></div>
-                    </div>""", unsafe_allow_html=True)
-
-                    g1, g2, g3, g4 = st.columns(4)
-                    for gcol, lbl, val, cor in [
-                        (g1, "Benefício",    fmt(row['beneficio']), NAVY),
-                        (g2, "Margem disp.", fmt(m), GREEN if m>300 else RED if m<=0 else YELLOW),
-                        (g3, "Próx. INSS",   row['prox'].strftime('%d/%m/%Y') if row['prox'] else "—", NAVY),
-                        (g4, "Comprometido", f"{row['pct']:.0f}%", NAVY),
-                    ]:
-                        with gcol:
-                            st.markdown(f"""
-                            <div style="background:#F8FAFC;border-radius:9px;padding:8px 10px;text-align:center">
-                                <div style="font-size:9px;color:#94A3B8;font-weight:600;text-transform:uppercase;letter-spacing:.05em">{lbl}</div>
-                                <div style="font-size:13px;font-weight:700;color:{cor};margin-top:2px">{val}</div>
-                            </div>""", unsafe_allow_html=True)
-
-                    # Barra de comprometimento
-                    pct_c = row['pct']
-                    bar_color = GREEN if pct_c < 60 else YELLOW if pct_c < 90 else RED
-                    st.markdown(f"""
-                    <div style="margin-top:10px">
-                        <div class="progress-bar-wrap">
-                            <div class="progress-bar-fill" style="width:{pct_c}%;background:{bar_color}"></div>
+                st.markdown(f"""
+                <div style="background:#0D1B35;border:1px solid rgba(74,222,128,0.2);border-radius:14px;
+                    padding:18px 20px;margin:8px 0;border-left:4px solid {'#4ADE80' if m>300 else '#EF4444' if m<=0 else '#FBBF24'}">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+                        <div>
+                            <div style="font-size:18px;font-weight:800;color:white">{row['nome']}</div>
+                            <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:3px">
+                                {row['tel_d']} · {row.get('canal','')} · {row.get('interesse','')}
+                            </div>
+                            <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+                                {badge(row['status'],'blue')}
+                                {badge(f"Score {row['score']}%",'green' if row['score']>=75 else 'yellow' if row['score']>=50 else 'red')}
+                                {badge('Oportunidade','green') if m>300 else badge('Sem margem','red') if m<=0 else badge('Margem baixa','yellow')}
+                            </div>
                         </div>
-                        <div style="font-size:10px;color:#94A3B8;margin-top:3px">Margem comprometida: {pct_c:.0f}%</div>
-                    </div>""", unsafe_allow_html=True)
+                        <div style="text-align:right">
+                            <div style="font-size:10px;color:rgba(255,255,255,0.3)">Margem disponível</div>
+                            <div style="font-size:26px;font-weight:800;color:{'#4ADE80' if m>300 else '#EF4444' if m<=0 else '#FBBF24'}">{fmt(m)}</div>
+                            <div style="font-size:10px;color:rgba(255,255,255,0.3)">Benefício: {fmt(row['beneficio'])}</div>
+                        </div>
+                    </div>
+                    <div style="margin-top:12px">
+                        <div style="display:flex;justify-content:space-between;font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:4px">
+                            <span>Margem comprometida</span><span>{pct_c:.0f}%</span>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.07);border-radius:99px;height:6px;overflow:hidden">
+                            <div style="width:{pct_c}%;height:100%;background:{bar_c};border-radius:99px"></div>
+                        </div>
+                    </div>
+                </div>""", unsafe_allow_html=True)
 
-                with cb:
-                    st.markdown("**Registrar contato**")
-                    with st.form(f"hist_{row['id']}"):
-                        tp  = st.selectbox("Tipo", ["Ligação","WhatsApp","Visita","Email","Outro"], key=f"tp_{row['id']}")
-                        nt  = st.text_area("Anotação", height=60, key=f"nt_{row['id']}")
-                        if st.form_submit_button("📝 Salvar", use_container_width=True):
-                            ins_hist({"cliente_id":row["id"],"tipo":tp,"nota":nt,"data":str(date.today())})
-                            st.success("✅ Registrado!")
-                            st.rerun()
+                # 4 abas da visão 360°
+                t360_dados, t360_hist, t360_acao, t360_contrato = st.tabs([
+                    "📋 Dados & KPIs", "📜 Histórico", "✏️ Ações", "📄 Contratos"
+                ])
 
-                    with st.form(f"fu_{row['id']}"):
-                        dfu = st.date_input("Agendar follow-up", value=date.today()+timedelta(days=1), key=f"dfu_{row['id']}")
-                        mfu = st.text_input("Motivo", key=f"mfu_{row['id']}")
-                        if st.form_submit_button("📅 Agendar", use_container_width=True):
-                            ins_fu({"cliente_id":row["id"],"data_followup":str(dfu),"motivo":mfu})
-                            st.success("✅ Agendado!")
+                with t360_dados:
+                    # Grid de KPIs do cliente
+                    g1,g2,g3,g4 = st.columns(4)
+                    with g1: kpi_html("Benefício", fmt(row['beneficio']), "", "navy")
+                    with g2: kpi_html("Margem disp.", fmt(m), "", "green" if m>300 else "red" if m<=0 else "yellow")
+                    with g3: kpi_html("Próx. INSS", row['prox'].strftime('%d/%m/%Y') if row['prox'] else "—", f"em {int(row['dias'])} dia(s)" if row['dias'] else "", "navy")
+                    with g4: kpi_html("Score", f"{row['score']}%", "propensão", "green" if row['score']>=75 else "yellow")
+
+                    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+                    c_info1, c_info2 = st.columns(2)
+                    with c_info1:
+                        st.markdown(f"""
+                        <div style="background:#0D1B35;border:1px solid rgba(255,255,255,0.06);border-radius:11px;padding:14px 16px">
+                            <div style="color:rgba(255,255,255,0.4);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Dados Pessoais</div>
+                            <table style="width:100%;font-size:12px">
+                                <tr><td style="color:rgba(255,255,255,0.4);padding:4px 0">CPF</td><td style="color:white;text-align:right">{row['cpf_d']}</td></tr>
+                                <tr><td style="color:rgba(255,255,255,0.4);padding:4px 0">Telefone</td><td style="color:white;text-align:right">{row['tel_d']}</td></tr>
+                                <tr><td style="color:rgba(255,255,255,0.4);padding:4px 0">Canal</td><td style="color:white;text-align:right">{row.get('canal','—')}</td></tr>
+                                <tr><td style="color:rgba(255,255,255,0.4);padding:4px 0">Interesse</td><td style="color:white;text-align:right">{row.get('interesse','—')}</td></tr>
+                                <tr><td style="color:rgba(255,255,255,0.4);padding:4px 0">Status</td><td style="color:white;text-align:right">{row.get('status','—')}</td></tr>
+                            </table>
+                        </div>""", unsafe_allow_html=True)
+                    with c_info2:
+                        st.markdown(f"""
+                        <div style="background:#0D1B35;border:1px solid rgba(255,255,255,0.06);border-radius:11px;padding:14px 16px">
+                            <div style="color:rgba(255,255,255,0.4);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Análise Financeira</div>
+                            <table style="width:100%;font-size:12px">
+                                <tr><td style="color:rgba(255,255,255,0.4);padding:4px 0">Margem total (40%)</td><td style="color:white;text-align:right">{fmt(row['beneficio']*0.4)}</td></tr>
+                                <tr><td style="color:rgba(255,255,255,0.4);padding:4px 0">Parcelas ativas</td><td style="color:#EF4444;text-align:right">{fmt(row['parcelas'])}</td></tr>
+                                <tr><td style="color:rgba(255,255,255,0.4);padding:4px 0">Margem livre</td><td style="color:{'#4ADE80' if m>0 else '#EF4444'};text-align:right;font-weight:700">{fmt(m)}</td></tr>
+                                <tr><td style="color:rgba(255,255,255,0.4);padding:4px 0">Comprometido</td><td style="color:white;text-align:right">{pct_c:.0f}%</td></tr>
+                                <tr><td style="color:rgba(255,255,255,0.4);padding:4px 0">Score propensão</td><td style="color:{'#4ADE80' if row['score']>=75 else '#FBBF24'};text-align:right;font-weight:700">{row['score']}%</td></tr>
+                            </table>
+                        </div>""", unsafe_allow_html=True)
+
+                    if row.get('observacoes'):
+                        st.markdown(f"""
+                        <div style="background:#0D1B35;border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;margin-top:10px">
+                            <div style="color:rgba(255,255,255,0.35);font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:5px">Observações</div>
+                            <div style="color:rgba(255,255,255,0.7);font-size:12px">{row['observacoes']}</div>
+                        </div>""", unsafe_allow_html=True)
+
+                with t360_hist:
+                    hist = load_hist(row["id"])
+                    if not hist.empty:
+                        for _, h in hist.iterrows():
+                            tp_cor = {"Ligação":"#60A5FA","WhatsApp":"#4ADE80","Visita":"#C084FC","Email":"#FB923C"}.get(h.get('tipo',''),"#94A3B8")
+                            st.markdown(f"""
+                            <div style="background:#0D1B35;border:1px solid rgba(255,255,255,0.06);border-radius:9px;
+                                padding:10px 14px;margin-bottom:6px;border-left:3px solid {tp_cor}">
+                                <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                                    <span style="color:{tp_cor};font-size:11px;font-weight:700">{h.get('tipo','')}</span>
+                                    <span style="color:rgba(255,255,255,0.3);font-size:10px">{h.get('data','')}</span>
+                                </div>
+                                <div style="color:rgba(255,255,255,0.7);font-size:12px">{h.get('nota','')}</div>
+                            </div>""", unsafe_allow_html=True)
+                    else:
+                        st.markdown('<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:16px 0">Nenhum histórico registrado.</div>', unsafe_allow_html=True)
+
+                with t360_acao:
+                    ca_acao, cb_acao = st.columns(2)
+                    with ca_acao:
+                        st.markdown('<div style="color:rgba(255,255,255,0.6);font-size:12px;font-weight:600;margin-bottom:8px">Registrar Contato</div>', unsafe_allow_html=True)
+                        with st.form(f"hist_{row['id']}"):
+                            tp  = st.selectbox("Tipo", ["Ligação","WhatsApp","Visita","Email","Outro"], key=f"tp_{row['id']}")
+                            nt  = st.text_area("Anotação", height=70, key=f"nt_{row['id']}")
+                            if st.form_submit_button("📝 Salvar", use_container_width=True):
+                                ins_hist({"cliente_id":row["id"],"tipo":tp,"nota":nt,"data":str(date.today())})
+                                st.success("✅ Registrado!")
+                                st.rerun()
+
+                    with cb_acao:
+                        st.markdown('<div style="color:rgba(255,255,255,0.6);font-size:12px;font-weight:600;margin-bottom:8px">Agendar Follow-up</div>', unsafe_allow_html=True)
+                        with st.form(f"fu_{row['id']}"):
+                            dfu = st.date_input("Data", value=date.today()+timedelta(days=1), key=f"dfu_{row['id']}")
+                            mfu = st.text_input("Motivo", key=f"mfu_{row['id']}")
+                            if st.form_submit_button("📅 Agendar", use_container_width=True):
+                                ins_fu({"cliente_id":row["id"],"data_followup":str(dfu),"motivo":mfu})
+                                st.success("✅ Agendado!")
 
                     if row.get("email"):
-                        if st.button(f"📧 Enviar INSS", key=f"em_{row['id']}"):
+                        if st.button(f"📧 Enviar calendário INSS", key=f"em_{row['id']}"):
                             pg_d, dias_d = prox_pg(row["cpf_raw"])
-                            html = f'<div style="font-family:Inter,sans-serif;max-width:500px;margin:0 auto"><div style="background:{NAVY};padding:24px;border-radius:12px 12px 0 0"><h2 style="color:white;margin:0;font-size:18px">⚛ Núcleo Crédito</h2></div><div style="background:white;padding:24px;border-radius:0 0 12px 12px"><p style="font-size:15px">Olá, <b>{row["nome"].split()[0]}</b>!</p><p>Seu próximo pagamento INSS: <b style="color:{GREEN};font-size:18px">{pg_d.strftime("%d/%m/%Y") if pg_d else "Em breve"}</b></p><a href="https://wa.me/5511952723015" style="display:inline-block;background:{GREEN};color:white;padding:10px 24px;border-radius:99px;text-decoration:none;font-weight:600">💬 Falar no WhatsApp</a></div></div>'
-                            ok_e, err_e = send_email_safe(row["email"], row["nome"], "Seu INSS — Núcleo Crédito", html)
-                            if ok_e:
-                                st.success("✅ Enviado!")
-                            else:
-                                st.error(f"Erro: {err_e}")
+                            html_email = (f'<div style="font-family:Inter,sans-serif;max-width:500px;margin:0 auto">'
+                                f'<div style="background:#1B3A6B;padding:24px;border-radius:12px 12px 0 0">'
+                                f'<h2 style="color:white;margin:0;font-size:18px">⚛ Núcleo Crédito</h2></div>'
+                                f'<div style="background:white;padding:24px;border-radius:0 0 12px 12px">'
+                                f'<p style="font-size:15px">Olá, <b>{row["nome"].split()[0]}</b>!</p>'
+                                f'<p>Próximo INSS: <b style="color:#1A7A5E;font-size:18px">'
+                                f'{pg_d.strftime("%d/%m/%Y") if pg_d else "Em breve"}</b></p>'
+                                f'<a href="https://wa.me/5511952723015" style="background:#1A7A5E;color:white;'
+                                f'padding:10px 24px;border-radius:99px;text-decoration:none;font-weight:600">'
+                                f'💬 Falar no WhatsApp</a></div></div>')
+                            ok_e, err_e = send_email_safe(row["email"], row["nome"], "Seu INSS — Núcleo Crédito", html_email)
+                            if ok_e: st.success("✅ Enviado!")
+                            else: st.error(f"Erro: {err_e}")
 
                     if st.button(f"🗑 Remover cliente", key=f"del_{row['id']}"):
                         del_cli(row["id"])
                         st.rerun()
 
-                # Histórico
-                hist = load_hist(row["id"])
-                if not hist.empty:
-                    st.markdown("**Histórico de atendimento**")
-                    for _, h in hist.iterrows():
+                with t360_contrato:
+                    # Contratos do cliente
+                    try:
+                        r_ct = sb.table("contratos").select("*").eq("cliente_id", row["id"]).execute() if sb else None
+                        cts  = pd.DataFrame(r_ct.data) if r_ct and r_ct.data else pd.DataFrame()
+                    except: cts = pd.DataFrame()
+
+                    if not cts.empty:
+                        total_ct = cts["valor"].sum()
                         st.markdown(f"""
-                        <div class="hist-item">
-                            <div class="hist-meta">{h['data']} &nbsp;·&nbsp; {h['tipo']}</div>
-                            {h['nota']}
+                        <div style="display:flex;gap:10px;margin-bottom:12px">
+                            <div style="background:#0D1B35;border:1px solid rgba(74,222,128,0.2);border-radius:10px;padding:10px 14px;flex:1;text-align:center">
+                                <div style="color:rgba(255,255,255,0.35);font-size:10px">Contratos</div>
+                                <div style="color:white;font-size:20px;font-weight:800">{len(cts)}</div>
+                            </div>
+                            <div style="background:#0D1B35;border:1px solid rgba(74,222,128,0.2);border-radius:10px;padding:10px 14px;flex:1;text-align:center">
+                                <div style="color:rgba(255,255,255,0.35);font-size:10px">Total</div>
+                                <div style="color:#4ADE80;font-size:20px;font-weight:800">{fmt(total_ct)}</div>
+                            </div>
+                            <div style="background:#0D1B35;border:1px solid rgba(74,222,128,0.2);border-radius:10px;padding:10px 14px;flex:1;text-align:center">
+                                <div style="color:rgba(255,255,255,0.35);font-size:10px">Comissão est.</div>
+                                <div style="color:#4ADE80;font-size:20px;font-weight:800">{fmt(total_ct*0.03)}</div>
+                            </div>
                         </div>""", unsafe_allow_html=True)
+                        for _, ct in cts.iterrows():
+                            st.markdown(f"""
+                            <div style="background:#0D1B35;border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;margin-bottom:6px">
+                                <div style="display:flex;justify-content:space-between">
+                                    <span style="color:white;font-weight:600;font-size:13px">{ct.get('banco','—')}</span>
+                                    <span style="color:#4ADE80;font-weight:700">{fmt(ct.get('valor',0))}</span>
+                                </div>
+                                <div style="color:rgba(255,255,255,0.35);font-size:11px;margin-top:3px">
+                                    {ct.get('parcelas_total',0)}x · {ct.get('taxa_juros',0)}% a.m. · Início: {ct.get('data_inicio','—')}
+                                </div>
+                            </div>""", unsafe_allow_html=True)
+                    else:
+                        st.markdown('<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:16px 0">Nenhum contrato registrado para este cliente.</div>', unsafe_allow_html=True)
+
+
     else:
         st.info("Nenhum cliente cadastrado ainda.")
 
 # ═══ LEADS ═══
 elif "Leads" in menu:
-    page_header("📋", "Pipeline de Leads", "Funil de vendas visual — Kanban")
+    page_header("📋", "Funil de Vendas", "Pipeline completo — do primeiro contato ao pagamento")
 
-    if st.button("＋ Novo Lead", key="btn_new_lead"):
-        st.session_state["show_form_lead"] = not st.session_state.get("show_form_lead", False)
-    if st.session_state.get("show_form_lead", False):
-        with st.form("form_lead", clear_on_submit=True):
-            c1, c2 = st.columns(2)
-            with c1:
-                ln = st.text_input("Nome")
-                lt = st.text_input("Telefone")
-                lc = st.selectbox("Canal", ["Panfletagem","Rádio","WhatsApp","Indicação","Instagram","Google","Presencial"])
-            with c2:
-                li = st.selectbox("Interesse", ["Consignado INSS","Portabilidade","Refinanciamento","Cartão Consignado"])
-                lb = st.number_input("Benefício (R$)", min_value=0.0, step=50.0)
-                ls = st.selectbox("Status", ["Novo","Em negociação","Convertido","Perdido"])
-            lo = st.text_area("Observações", height=50)
-            if st.form_submit_button("✅ Registrar Lead", use_container_width=True):
-                ins_lead({"nome":ln,"telefone":lt,"canal":lc,"interesse":li,"beneficio":float(lb),"status":ls,"observacoes":lo})
-                st.success("Lead registrado!")
-                st.rerun()
-
+    # ── KPIs do funil ──────────────────────────────────────────────────────────
     dfl = load_leads()
-    if not dfl.empty:
-        STATUS  = ["Novo","Em negociação","Convertido","Perdido"]
-        ICONES  = {"Novo":"🔵","Em negociação":"🟡","Convertido":"✅","Perdido":"❌"}
-        CORES_K = {"Novo":NAVY,"Em negociação":YELLOW,"Convertido":GREEN,"Perdido":RED}
+    if not dfl.empty and "etapa" not in dfl.columns:
+        dfl["etapa"] = dfl["status"].map({
+            "Novo": "Novo Lead", "Em negociação": "Em Contato",
+            "Convertido": "Contrato Pago", "Perdido": "Perdido"
+        }).fillna("Novo Lead")
 
-        cols = st.columns(4)
-        for idx, s in enumerate(STATUS):
-            grupo = dfl[dfl["status"] == s]
-            with cols[idx]:
-                st.markdown(f"""
-                <div class="kanban-col">
-                    <div class="kanban-header">
-                        <span style="color:{CORES_K[s]}">{ICONES[s]} {s}</span>
-                        <span style="background:#E2E8F0;color:#64748B;padding:1px 7px;border-radius:99px;font-size:10px">{len(grupo)}</span>
-                    </div>
-                """, unsafe_allow_html=True)
+    ETAPAS_FUNIL = ["Novo Lead","Em Contato","Proposta Enviada","Aguard. Retorno","Aprovado","Contrato Pago","Perdido"]
+    CORES_ETAPA  = {"Novo Lead":"#60A5FA","Em Contato":"#FBBF24","Proposta Enviada":"#C084FC",
+                    "Aguard. Retorno":"#FB923C","Aprovado":"#4ADE80","Contrato Pago":"#34D399","Perdido":"#F87171"}
+    TEMP_CORES   = {"Quente":"#EF4444","Morno":"#F59E0B","Frio":"#60A5FA"}
 
-                for _, row in grupo.iterrows():
-                    st.markdown(f"""
-                    <div class="kanban-card" style="border-left-color:{CORES_K[s]}">
-                        <div style="font-size:12px;font-weight:600;color:{NAVY}">{row['nome']}</div>
-                        <div style="font-size:10px;color:#94A3B8;margin-top:2px">{row['canal']} · {row['interesse']}</div>
-                        {"<div style='font-size:11px;color:"+GREEN+";font-weight:600;margin-top:4px'>"+fmt(row['beneficio'])+"</div>" if row['beneficio'] else ""}
-                    </div>""", unsafe_allow_html=True)
+    total_leads = len(dfl) if not dfl.empty else 0
+    em_aberto   = len(dfl[~dfl["etapa"].isin(["Contrato Pago","Perdido"])]) if not dfl.empty else 0
+    convertidos = len(dfl[dfl["etapa"]=="Contrato Pago"]) if not dfl.empty else 0
+    taxa_conv   = round(convertidos/total_leads*100,1) if total_leads > 0 else 0
+    vl_pipeline = dfl[~dfl["etapa"].isin(["Perdido"])]["valor_estimado"].sum() if not dfl.empty and "valor_estimado" in dfl.columns else 0
 
-                    ns = st.selectbox(
-                        "Mover para",
-                        STATUS,
-                        index=STATUS.index(s),
-                        key=f"ls_{row['id']}",
-                        label_visibility="collapsed"
-                    )
-                    if ns != s:
-                        upd_lead(row["id"], ns)
-                        st.rerun()
+    c1,c2,c3,c4,c5 = st.columns(5)
+    with c1: kpi_html("Total Leads", total_leads, "", "navy")
+    with c2: kpi_html("Em Aberto", em_aberto, "negociações ativas", "yellow")
+    with c3: kpi_html("Convertidos", convertidos, "contratos pagos", "green")
+    with c4: kpi_html("Conversão", f"{taxa_conv}%", "total geral", "green")
+    with c5: kpi_html("Pipeline", fmt(vl_pipeline), "valor estimado", "navy")
 
-                st.markdown('</div>', unsafe_allow_html=True)
-    else:
-        st.info("Nenhum lead registrado.")
+    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 
-# ═══ CONTRATOS ═══
-elif "Contratos" in menu:
-    page_header("📄", "Contratos", "Carteira ativa e controle de comissões")
+    # ── Tabs: Kanban | Lista | Novo Lead ───────────────────────────────────────
+    tab_kanban, tab_lista, tab_novo = st.tabs(["🗂 Kanban", "📋 Lista Completa", "＋ Novo Lead"])
 
-    df_cli = load_clientes()
-    dfc    = load_contratos()
-
-    if not dfc.empty:
-        tv = dfc["valor"].sum()
-        c1, c2, c3 = st.columns(3)
-        with c1: kpi_html("Carteira Total",     fmt(tv),           "",        "navy")
-        with c2: kpi_html("Comissão Estimada",  fmt(tv*0.03),      "3%",      "green")
-        with c3: kpi_html("Contratos Ativos",   len(dfc),          "",        "green")
-        st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-
-    if st.button("＋ Novo Contrato", key="btn_new_ct"):
-        st.session_state["show_form_ct"] = not st.session_state.get("show_form_ct", False)
-    if st.session_state.get("show_form_ct", False):
-        if df_cli.empty:
-            st.warning("Cadastre um cliente primeiro.")
-        else:
-            with st.form("form_ct", clear_on_submit=True):
-                cm  = {r["nome"]: r["id"] for _, r in df_cli.iterrows()}
-                c1, c2 = st.columns(2)
-                with c1:
-                    cs  = st.selectbox("Cliente", list(cm.keys()))
-                    bco = st.selectbox("Banco", ["Banco BMG","Banco Safra","Banco PAN","Caixa","BRB","Facta","Itaú Consig."])
-                    val = st.number_input("Valor (R$)", min_value=0.0, step=100.0)
-                with c2:
-                    pt  = st.number_input("Parcelas", min_value=1, max_value=84, value=36, step=1)
-                    tx2 = st.number_input("Taxa (% a.m.)", min_value=0.5, max_value=5.0, value=1.8, step=0.1)
-                    di  = st.date_input("Data Início")
-                if st.form_submit_button("✅ Registrar", use_container_width=True):
-                    ins_ct({"cliente_id":cm[cs],"banco":bco,"valor":float(val),"parcelas_total":int(pt),"taxa_juros":float(tx2),"data_inicio":str(di)})
-                    st.success("Contrato registrado!")
+    with tab_novo:
+        with st.form("form_lead_novo", clear_on_submit=True):
+            st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                ln  = st.text_input("Nome completo *")
+                lt  = st.text_input("Telefone *")
+                le  = st.text_input("Email")
+                lcp = st.text_input("CPF")
+            with c2:
+                lc  = st.selectbox("Canal de entrada", ["WhatsApp","Indicação","Panfletagem","Rádio","Instagram","Google","Presencial","Outros"])
+                li  = st.selectbox("Produto de interesse", ["Consignado INSS","Portabilidade","Refinanciamento","Cartão Consignado","Consignado Servidor","Empréstimo Pessoal"])
+                lb  = st.number_input("Benefício / Salário (R$)", min_value=0.0, step=50.0)
+                lv  = st.number_input("Valor estimado do negócio (R$)", min_value=0.0, step=100.0)
+            with c3:
+                let = st.selectbox("Etapa inicial", ETAPAS_FUNIL[:4])
+                lte = st.selectbox("Temperatura", ["Quente","Morno","Frio"])
+                ldr = st.date_input("Data prevista retorno", value=date.today()+timedelta(days=1))
+                lob = st.text_area("Observações", height=68)
+            st.markdown('</div>', unsafe_allow_html=True)
+            if st.form_submit_button("✅ Cadastrar Lead no Funil", use_container_width=True):
+                if not ln or not lt:
+                    st.error("Nome e telefone são obrigatórios.")
+                else:
+                    ins_lead({"nome":ln,"telefone":lt,"email":le if le else None,
+                        "canal":lc,"interesse":li,"beneficio":float(lb),
+                        "valor_estimado":float(lv),"status":let,"etapa":let,
+                        "temperatura":lte,"data_retorno":str(ldr),"observacoes":lob,
+                        "ultimo_contato":datetime.now().isoformat()})
+                    st.success(f"✅ {ln} adicionado ao funil!")
                     st.rerun()
 
-    if not dfc.empty:
-        dfc["parcela"] = dfc.apply(lambda r: round(
-            r["valor"]*(r["taxa_juros"]/100*(1+r["taxa_juros"]/100)**r["parcelas_total"])/
-            ((1+r["taxa_juros"]/100)**r["parcelas_total"]-1), 2
-        ) if r["parcelas_total"]>0 else 0, axis=1)
-        dfc["comissao"] = (dfc["valor"]*0.03).round(2)
+    with tab_kanban:
+        if dfl.empty:
+            st.info("Nenhum lead cadastrado. Use a aba '＋ Novo Lead'.")
+        else:
+            # Funil visual com % de conversão
+            etapas_ativas = [e for e in ETAPAS_FUNIL if e != "Perdido"]
+            totais = {e: len(dfl[dfl["etapa"]==e]) for e in ETAPAS_FUNIL}
 
-        st.markdown('<div class="chart-card"><div class="chart-title">📋 Carteira de Contratos</div>', unsafe_allow_html=True)
-        st.dataframe(
-            dfc[["cliente_nome","banco","valor","parcelas_total","parcela","comissao","data_inicio"]].rename(columns={
-                "cliente_nome":"Cliente","banco":"Banco","valor":"Valor (R$)",
-                "parcelas_total":"Parcelas","parcela":"Parcela/mês","comissao":"Comissão","data_inicio":"Início"
-            }),
-            use_container_width=True, hide_index=True
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
+            # Barra de progresso do funil
+            st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+            st.markdown('<div class="chart-title">📊 Distribuição do Funil</div>', unsafe_allow_html=True)
+            funil_html = '<div style="display:flex;gap:4px;align-items:stretch;height:36px;border-radius:10px;overflow:hidden">'
+            for etapa in etapas_ativas:
+                cnt = totais.get(etapa, 0)
+                pct = round(cnt/max(total_leads,1)*100)
+                cor = CORES_ETAPA[etapa]
+                if pct > 0:
+                    funil_html += (f'<div style="flex:{pct};background:{cor};display:flex;align-items:center;'
+                                   f'justify-content:center;font-size:10px;font-weight:700;color:white;'
+                                   f'white-space:nowrap;padding:0 4px" title="{etapa}: {cnt}">'
+                                   f'{cnt if pct>8 else ""}</div>')
+            funil_html += '</div><div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">'
+            for etapa in etapas_ativas:
+                cnt = totais.get(etapa, 0)
+                cor = CORES_ETAPA[etapa]
+                funil_html += (f'<span style="font-size:10px;color:rgba(255,255,255,0.6);'
+                               f'display:flex;align-items:center;gap:4px">'
+                               f'<span style="width:8px;height:8px;border-radius:50%;background:{cor};display:inline-block"></span>'
+                               f'{etapa} ({cnt})</span>')
+            funil_html += '</div>'
+            st.markdown(funil_html, unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
-# ═══ SIMULADOR ═══
-elif "Simulador" in menu:
-    page_header("🧮", "Simulador de Crédito", "Calcule margem, simule propostas e compare portabilidade")
+            # Kanban por etapas (sem Perdido)
+            n_cols = 4
+            for row_start in range(0, len(etapas_ativas), n_cols):
+                etapas_row = etapas_ativas[row_start:row_start+n_cols]
+                cols = st.columns(len(etapas_row))
+                for col_idx, etapa in enumerate(etapas_row):
+                    grupo = dfl[dfl["etapa"]==etapa]
+                    cor   = CORES_ETAPA[etapa]
+                    with cols[col_idx]:
+                        st.markdown(f"""
+                        <div style="background:#0D1B35;border:1px solid {cor}30;border-top:3px solid {cor};
+                            border-radius:12px;padding:12px;min-height:80px">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                                <span style="color:{cor};font-size:12px;font-weight:700">{etapa}</span>
+                                <span style="background:{cor}20;color:{cor};padding:1px 8px;
+                                    border-radius:99px;font-size:10px;font-weight:700">{len(grupo)}</span>
+                            </div>""", unsafe_allow_html=True)
 
-    tab1, tab2 = st.tabs(["💳 Simulação de Crédito", "🔄 Calculadora de Portabilidade"])
+                        for _, row in grupo.iterrows():
+                            temp = row.get("temperatura","Frio")
+                            tc   = TEMP_CORES.get(temp,"#60A5FA")
+                            vl   = row.get("valor_estimado",0) or 0
+                            st.markdown(f"""
+                            <div style="background:rgba(255,255,255,0.04);border-radius:9px;
+                                padding:9px 11px;margin-bottom:7px;border-left:3px solid {tc}">
+                                <div style="font-size:12px;font-weight:700;color:white;margin-bottom:2px">
+                                    {row['nome'].split()[0]} {row['nome'].split()[1] if len(row['nome'].split())>1 else ''}
+                                </div>
+                                <div style="font-size:10px;color:rgba(255,255,255,0.45)">
+                                    {row.get('interesse','')[:22]}
+                                </div>
+                                <div style="display:flex;justify-content:space-between;margin-top:5px;align-items:center">
+                                    <span style="font-size:10px;font-weight:700;color:{tc}">{temp}</span>
+                                    {f'<span style="font-size:10px;color:#4ADE80;font-weight:600">{fmt(vl)}</span>' if vl>0 else ''}
+                                </div>
+                            </div>""", unsafe_allow_html=True)
 
-    with tab1:
-        c1, c2 = st.columns([1, 1.2])
-        with c1:
-            st.markdown("#### Dados do Cliente")
-            ben2 = st.number_input("Benefício (R$)", min_value=0.0, value=1412.0, step=50.0)
-            pa2  = st.number_input("Parcelas Ativas (R$)", min_value=0.0, value=0.0, step=50.0)
-            mc = ben2*0.4; md = max(0, mc-pa2)
-            pct2 = min(100, round(pa2/mc*100, 1)) if mc > 0 else 0
-            cor_md = GREEN if md > 300 else YELLOW if md > 0 else RED
+                            nova_etapa = st.selectbox(
+                                "Mover",
+                                ETAPAS_FUNIL,
+                                index=ETAPAS_FUNIL.index(etapa),
+                                key=f"et_{row['id']}",
+                                label_visibility="collapsed"
+                            )
+                            if nova_etapa != etapa:
+                                extra = {"ultimo_contato": datetime.now().isoformat()}
+                                if nova_etapa == "Proposta Enviada":
+                                    extra["data_proposta"] = str(date.today())
+                                elif nova_etapa in ["Contrato Pago","Aprovado"]:
+                                    extra["data_contato"] = str(date.today())
+                                upd_lead_etapa(row["id"], nova_etapa, extra)
+                                st.rerun()
 
-            st.markdown(f"""
-            <div style="background:white;border-radius:12px;padding:16px 18px;box-shadow:0 1px 4px rgba(0,0,0,0.07);margin-top:8px">
-                <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F1F5F9;font-size:13px">
-                    <span style="color:#64748B">Margem consignável (40%)</span>
-                    <span style="font-weight:600;color:{NAVY}">{fmt(mc)}</span>
-                </div>
-                <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F1F5F9;font-size:13px">
-                    <span style="color:#64748B">Parcelas ativas</span>
-                    <span style="font-weight:600;color:{RED}">{fmt(pa2)}</span>
-                </div>
-                <div style="display:flex;justify-content:space-between;padding:8px 0 4px;font-size:13px">
-                    <span style="color:#64748B">Margem disponível</span>
-                    <span style="font-size:22px;font-weight:800;color:{cor_md}">{fmt(md)}</span>
-                </div>
-                <div class="progress-bar-wrap">
-                    <div class="progress-bar-fill" style="width:{pct2}%;background:{'#1A7A5E' if pct2<60 else '#E67E22' if pct2<90 else '#C0392B'}"></div>
-                </div>
-                <div style="font-size:10px;color:#94A3B8;margin-top:4px">Comprometido: {pct2:.0f}%</div>
-            </div>""", unsafe_allow_html=True)
+                        st.markdown('</div>', unsafe_allow_html=True)
 
-        with c2:
-            st.markdown("#### Simulação")
-            val2  = st.number_input("Valor desejado (R$)", min_value=0.0, value=3000.0, step=500.0)
-            prazo = st.select_slider("Prazo", options=[12,24,36,48,60,72,84], value=36)
-            taxa3 = st.slider("Taxa (% a.m.)", 0.5, 3.5, 1.8, 0.1)
-
-            if val2 > 0 and ben2 > 0:
-                r2    = taxa3/100
-                fator = (r2*(1+r2)**prazo)/((1+r2)**prazo-1)
-                parc  = val2*fator; tot = parc*prazo; jur = tot-val2
-                cabe  = parc <= md; cr = GREEN if cabe else RED
-                msg   = "✅ Cabe na margem" if cabe else "❌ Excede a margem"
-
+            # Perdidos separado
+            perdidos = dfl[dfl["etapa"]=="Perdido"]
+            if len(perdidos) > 0:
                 st.markdown(f"""
-                <div style="background:white;border-radius:12px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,0.07);border-top:4px solid {cr}">
-                    <div style="text-align:center;padding:12px 0 16px">
-                        <div style="font-size:11px;color:#94A3B8;margin-bottom:5px">Parcela mensal</div>
-                        <div style="font-size:34px;font-weight:800;color:{cr}">{fmt(parc)}</div>
-                        <div style="font-size:12px;font-weight:600;color:{cr};margin-top:4px">{msg}</div>
+                <div style="background:#0D1B35;border:1px solid #F8717130;border-radius:12px;
+                    padding:12px 16px;margin-top:8px">
+                    <div style="color:#F87171;font-size:12px;font-weight:700;margin-bottom:8px">
+                        ❌ Perdidos — {len(perdidos)} lead(s)
                     </div>
-                    <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid #F1F5F9;font-size:13px">
-                        <span style="color:#64748B">Total a pagar</span><span style="font-weight:600">{fmt(tot)}</span>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px">""", unsafe_allow_html=True)
+                for _, row in perdidos.iterrows():
+                    st.markdown(f"""
+                    <span style="background:rgba(248,113,113,0.1);border:1px solid #F8717130;
+                        border-radius:7px;padding:4px 10px;font-size:11px;color:rgba(255,255,255,0.6)">
+                        {row['nome'].split()[0]}
+                    </span>""", unsafe_allow_html=True)
+                st.markdown('</div></div>', unsafe_allow_html=True)
+
+    with tab_lista:
+        if dfl.empty:
+            st.info("Nenhum lead cadastrado.")
+        else:
+            # Filtros
+            cf1, cf2, cf3 = st.columns(3)
+            with cf1: fet = st.multiselect("Etapa", ETAPAS_FUNIL, default=ETAPAS_FUNIL)
+            with cf2: ftp = st.multiselect("Temperatura", ["Quente","Morno","Frio"], default=["Quente","Morno","Frio"])
+            with cf3: fca = st.multiselect("Canal", dfl["canal"].unique().tolist(), default=dfl["canal"].unique().tolist())
+
+            dff = dfl[dfl["etapa"].isin(fet) & dfl["temperatura"].isin(ftp) & dfl["canal"].isin(fca)] if not dfl.empty else dfl
+            dff = dff.sort_values(["temperatura","etapa"], key=lambda x: x.map({"Quente":0,"Morno":1,"Frio":2}).fillna(3) if x.name=="temperatura" else x)
+
+            st.markdown(f"<p style='color:rgba(255,255,255,0.4);font-size:12px;margin:6px 0 10px'><b>{len(dff)}</b> lead(s)</p>", unsafe_allow_html=True)
+
+            for _, row in dff.iterrows():
+                et   = row.get("etapa","Novo Lead")
+                cor  = CORES_ETAPA.get(et,"#60A5FA")
+                temp = row.get("temperatura","Frio")
+                tc   = TEMP_CORES.get(temp,"#60A5FA")
+                vl   = row.get("valor_estimado",0) or 0
+
+                ca, cb = st.columns([4,1])
+                with ca:
+                    st.markdown(f"""
+                    <div style="background:#0D1B35;border:1px solid rgba(255,255,255,0.06);
+                        border-radius:11px;padding:12px 16px;border-left:4px solid {cor};margin-bottom:6px">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                            <div>
+                                <div style="font-size:14px;font-weight:700;color:white">{row['nome']}</div>
+                                <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px">
+                                    {row.get('canal','')} · {row.get('interesse','')}
+                                    {' · '+row.get('telefone','') if row.get('telefone') else ''}
+                                </div>
+                                <div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap">
+                                    <span style="background:{cor}20;color:{cor};padding:2px 9px;border-radius:99px;font-size:10px;font-weight:700">{et}</span>
+                                    <span style="background:{tc}20;color:{tc};padding:2px 9px;border-radius:99px;font-size:10px;font-weight:700">{temp}</span>
+                                    {f'<span style="color:#4ADE80;font-size:11px;font-weight:600">{fmt(vl)}</span>' if vl>0 else ''}
+                                </div>
+                            </div>
+                            <div style="text-align:right">
+                                <div style="font-size:10px;color:rgba(255,255,255,0.3)">Benefício</div>
+                                <div style="font-size:16px;font-weight:800;color:white">{fmt(row.get('beneficio',0))}</div>
+                            </div>
+                        </div>
+                    </div>""", unsafe_allow_html=True)
+                with cb:
+                    nova_et = st.selectbox("Etapa", ETAPAS_FUNIL,
+                        index=ETAPAS_FUNIL.index(et) if et in ETAPAS_FUNIL else 0,
+                        key=f"ls_et_{row['id']}", label_visibility="collapsed")
+                    if nova_et != et:
+                        upd_lead_etapa(row["id"], nova_et, {"ultimo_contato": datetime.now().isoformat()})
+                        st.rerun()
+                    nova_tp = st.selectbox("Temp", ["Quente","Morno","Frio"],
+                        index=["Quente","Morno","Frio"].index(temp) if temp in ["Quente","Morno","Frio"] else 2,
+                        key=f"ls_tp_{row['id']}", label_visibility="collapsed")
+                    if nova_tp != temp:
+                        sb.table("leads").update({"temperatura": nova_tp}).eq("id", row["id"]).execute()
+                        st.rerun()
+
+
+elif "Alertas" in menu:
+    page_header("🔔", "Central de Alertas", "Inteligência automática — oportunidades e lembretes em tempo real")
+
+    df_cli  = load_clientes()
+    df_lds  = load_leads()
+    df_alts = load_alertas()
+
+    # Gerar alertas automáticos
+    if not df_cli.empty or not df_lds.empty:
+        gerar_alertas_automaticos(df_cli, df_lds)
+        df_alts = load_alertas()  # recarrega após geração
+
+    # ── KPIs ───────────────────────────────────────────────────────────────────
+    urgentes  = len(df_alts[df_alts["prioridade"]=="urgente"])  if not df_alts.empty else 0
+    altas     = len(df_alts[df_alts["prioridade"]=="alta"])     if not df_alts.empty else 0
+    medias    = len(df_alts[df_alts["prioridade"]=="media"])    if not df_alts.empty else 0
+    opp_inss  = len(df_cli[df_cli["dias"].notna() & (df_cli["dias"].astype(float)<=2)]) if not df_cli.empty else 0
+
+    c1,c2,c3,c4 = st.columns(4)
+    with c1: kpi_html("🚨 Urgentes",  urgentes, "ação imediata",  "red")
+    with c2: kpi_html("⚡ Alta",       altas,    "hoje",           "yellow")
+    with c3: kpi_html("📌 Médios",     medias,   "esta semana",    "navy")
+    with c4: kpi_html("💰 INSS Hoje",  opp_inss, "oportunidade",   "green")
+
+    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+
+    tab_auto, tab_opp, tab_radar = st.tabs(["🤖 Alertas Automáticos", "💰 Oportunidades INSS", "🎯 Radar de Score"])
+
+    with tab_auto:
+        if df_alts.empty:
+            st.markdown("""
+            <div style="background:#0D1B35;border:1px solid rgba(255,255,255,0.06);border-radius:12px;
+                padding:32px;text-align:center">
+                <div style="font-size:32px;margin-bottom:8px">✅</div>
+                <div style="color:white;font-size:15px;font-weight:600">Tudo em ordem</div>
+                <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:4px">
+                    Nenhum alerta pendente no momento
+                </div>
+            </div>""", unsafe_allow_html=True)
+        else:
+            PRIOR_CONFIG = {
+                "urgente": ("#EF4444","🚨","Urgente"),
+                "alta":    ("#F59E0B","⚡","Alta"),
+                "media":   ("#60A5FA","📌","Média"),
+            }
+            TIPO_CONFIG = {
+                "lead_parado":      ("Lead parado",       "#FBBF24"),
+                "inss_oportunidade":("INSS + Margem",     "#4ADE80"),
+                "proposta_sem_resp":("Proposta sem resp.", "#C084FC"),
+                "cliente_quente":   ("Cliente quente",    "#FB923C"),
+            }
+
+            for _, alt in df_alts.sort_values("prioridade", key=lambda x: x.map({"urgente":0,"alta":1,"media":2}).fillna(3)).iterrows():
+                pr  = alt.get("prioridade","media")
+                cor, icon, label = PRIOR_CONFIG.get(pr, ("#60A5FA","📌","Média"))
+                tipo_label, tipo_cor = TIPO_CONFIG.get(alt.get("tipo",""), ("Alerta",cor))
+                tempo = ""
+                try:
+                    criado = pd.to_datetime(alt["criado_em"])
+                    if hasattr(criado,'tzinfo') and criado.tzinfo:
+                        criado = criado.tz_localize(None)
+                    h = int((datetime.now()-criado).total_seconds()/3600)
+                    tempo = f"{h}h atrás" if h < 24 else f"{h//24}d atrás"
+                except: pass
+
+                ca, cb = st.columns([5,1])
+                with ca:
+                    st.markdown(f"""
+                    <div style="background:#0D1B35;border:1px solid {cor}30;border-radius:11px;
+                        padding:12px 16px;margin-bottom:7px;border-left:4px solid {cor}">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                            <div style="flex:1">
+                                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                                    <span style="font-size:15px">{icon}</span>
+                                    <span style="color:white;font-size:13px;font-weight:700">{alt['titulo']}</span>
+                                </div>
+                                <div style="color:rgba(255,255,255,0.5);font-size:11px">{alt.get('descricao','')}</div>
+                                <div style="display:flex;gap:6px;margin-top:7px">
+                                    <span style="background:{cor}20;color:{cor};padding:1px 8px;border-radius:99px;font-size:10px;font-weight:700">{label}</span>
+                                    <span style="background:{tipo_cor}15;color:{tipo_cor};padding:1px 8px;border-radius:99px;font-size:10px;font-weight:600">{tipo_label}</span>
+                                </div>
+                            </div>
+                            <div style="color:rgba(255,255,255,0.25);font-size:10px;white-space:nowrap;margin-left:12px">{tempo}</div>
+                        </div>
+                    </div>""", unsafe_allow_html=True)
+                with cb:
+                    if st.button("✓ Lido", key=f"alt_lido_{alt['id']}"):
+                        marcar_alerta_lido(alt["id"])
+                        st.rerun()
+
+    with tab_opp:
+        if df_cli.empty:
+            st.info("Nenhum cliente cadastrado ainda.")
+        else:
+            opp  = df_cli[df_cli["margem"]>300].sort_values("score", ascending=False)
+            bx   = df_cli[(df_cli["margem"]>0)&(df_cli["margem"]<=300)].sort_values("score", ascending=False)
+            sm   = df_cli[df_cli["margem"]<=0]
+            ph   = df_cli[df_cli["dias"].notna() & (df_cli["dias"].astype(float)<=2)]
+
+            if len(ph) > 0:
+                st.markdown(f"<div style='color:#EF4444;font-size:13px;font-weight:700;margin-bottom:10px'>🚨 INSS Cai Hoje ou Amanhã — Contatar Agora</div>", unsafe_allow_html=True)
+                for _, row in ph.iterrows():
+                    st.markdown(f"""
+                    <div style="background:linear-gradient(135deg,#2B1A0D,#231408);border:1px solid rgba(239,68,68,0.3);
+                        border-radius:12px;padding:14px 18px;margin-bottom:8px">
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                            <div>
+                                <div style="color:white;font-weight:700;font-size:14px">{row['nome']}</div>
+                                <div style="color:rgba(255,255,255,0.5);font-size:11px;margin-top:2px">
+                                    {row['tel_d']} · {row.get('interesse','')} · Score {row['score']}%
+                                </div>
+                                <div style="margin-top:6px">
+                                    <span style="background:rgba(239,68,68,0.15);color:#EF4444;padding:2px 9px;border-radius:99px;font-size:10px;font-weight:700">🚨 URGENTE</span>
+                                    <span style="background:rgba(96,165,250,0.15);color:#60A5FA;padding:2px 9px;border-radius:99px;font-size:10px;font-weight:700;margin-left:4px">{row['status']}</span>
+                                </div>
+                            </div>
+                            <div style="text-align:right">
+                                <div style="color:rgba(255,255,255,0.3);font-size:10px">INSS em</div>
+                                <div style="font-size:28px;font-weight:800;color:#EF4444">{int(row['dias'])} dia(s)</div>
+                                <div style="color:rgba(255,255,255,0.4);font-size:11px">{row['prox'].strftime('%d/%m') if row['prox'] else ''}</div>
+                            </div>
+                        </div>
+                    </div>""", unsafe_allow_html=True)
+
+            if len(opp) > 0:
+                st.markdown(f"<div style='color:#4ADE80;font-size:13px;font-weight:700;margin:14px 0 10px'>💰 Oportunidades — Margem > R$ 300</div>", unsafe_allow_html=True)
+                for _, row in opp.iterrows():
+                    st.markdown(f"""
+                    <div style="background:linear-gradient(135deg,#0D2B1F,#0A2318);border:1px solid rgba(74,222,128,0.2);
+                        border-radius:11px;padding:12px 16px;margin-bottom:7px">
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                            <div>
+                                <div style="color:white;font-weight:700;font-size:13px">{row['nome']}</div>
+                                <div style="color:rgba(255,255,255,0.4);font-size:11px;margin-top:2px">
+                                    {row['tel_d']} · {row.get('interesse','')} · {row.get('canal','')}
+                                </div>
+                                <div style="margin-top:6px">
+                                    <span style="background:rgba(74,222,128,0.12);color:#4ADE80;padding:2px 9px;border-radius:99px;font-size:10px;font-weight:700">Score {row['score']}%</span>
+                                    <span style="background:rgba(96,165,250,0.12);color:#60A5FA;padding:2px 9px;border-radius:99px;font-size:10px;margin-left:4px">{row['status']}</span>
+                                </div>
+                            </div>
+                            <div style="text-align:right">
+                                <div style="color:rgba(255,255,255,0.3);font-size:10px">Margem disponível</div>
+                                <div style="font-size:22px;font-weight:800;color:#4ADE80">{fmt(row['margem'])}</div>
+                                <div style="color:rgba(255,255,255,0.3);font-size:10px">Ben: {fmt(row['beneficio'])}</div>
+                            </div>
+                        </div>
+                    </div>""", unsafe_allow_html=True)
+
+    with tab_radar:
+        if df_cli.empty:
+            st.info("Nenhum cliente cadastrado.")
+        else:
+            df_radar = df_cli.sort_values("score", ascending=False)
+            for _, row in df_radar.iterrows():
+                pct = row["score"]
+                cor = "#4ADE80" if pct>=75 else "#FBBF24" if pct>=50 else "#F87171"
+                st.markdown(f"""
+                <div style="background:#0D1B35;border:1px solid rgba(255,255,255,0.06);
+                    border-radius:10px;padding:10px 14px;margin-bottom:6px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                        <div>
+                            <span style="color:white;font-weight:600;font-size:13px">{row['nome']}</span>
+                            <span style="color:rgba(255,255,255,0.35);font-size:11px;margin-left:8px">{row['tel_d']}</span>
+                        </div>
+                        <span style="color:{cor};font-weight:800;font-size:15px">{pct}%</span>
                     </div>
-                    <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid #F1F5F9;font-size:13px">
-                        <span style="color:#64748B">Juros total</span><span style="font-weight:600;color:{RED}">{fmt(jur)}</span>
+                    <div style="background:rgba(255,255,255,0.07);border-radius:99px;height:5px;overflow:hidden">
+                        <div style="width:{pct}%;height:100%;background:{cor};border-radius:99px"></div>
                     </div>
-                    <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid #F1F5F9;font-size:13px">
-                        <span style="color:#64748B">Comissão estimada</span><span style="font-weight:600;color:{GREEN}">{fmt(val2*0.03)}</span>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:4px">
+                        Margem: {fmt(row['margem'])} · Ben: {fmt(row['beneficio'])} · {row.get('interesse','')}
                     </div>
                 </div>""", unsafe_allow_html=True)
 
-        if val2 > 0 and ben2 > 0:
-            st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
-            st.markdown('<div class="chart-card"><div class="chart-title">Comparativo de Prazos — 🟢 verde = cabe na margem</div>', unsafe_allow_html=True)
-            pzs = [12,24,36,48,60,72,84]; r2 = taxa3/100
-            pcs = [round(val2*(r2*(1+r2)**p)/((1+r2)**p-1), 2) for p in pzs]
-            fig5 = go.Figure(go.Bar(
-                x=[f"{p}m" for p in pzs], y=pcs,
-                marker_color=[GREEN if p<=md else RED for p in pcs],
-                marker_line_width=0,
-                text=[fmt(p) for p in pcs], textposition="outside", textfont=dict(size=10)
-            ))
-            fig5.add_hline(y=md, line_dash="dot", line_color=GREEN, line_width=2,
-                annotation_text=f"Margem {fmt(md)}", annotation_font_size=10)
-            fig5.update_layout(height=260, **plotly_theme())
-            st.plotly_chart(fig5, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
 
-    with tab2:
-        st.markdown("#### Calculadora de Portabilidade")
-        st.caption("Verifique se vale migrar o contrato para uma taxa menor.")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("**Contrato Atual**")
-            va  = st.number_input("Saldo devedor (R$)", min_value=0.0, value=8000.0, step=100.0, key="pva")
-            pra = st.number_input("Parcelas restantes", min_value=1, max_value=84, value=48, key="ppra")
-            txa = st.number_input("Taxa atual (% a.m.)", min_value=0.1, max_value=5.0, value=2.1, step=0.1, key="ptxa")
-        with c2:
-            st.markdown("**Nova Proposta**")
-            txn = st.number_input("Nova taxa (% a.m.)", min_value=0.1, max_value=5.0, value=1.7, step=0.1, key="ptxn")
-            prn = st.number_input("Novo prazo (meses)", min_value=1, max_value=84, value=48, key="pprn")
-
-        if va > 0:
-            ra = txa/100; rn = txn/100
-            pca = va*(ra*(1+ra)**pra)/((1+ra)**pra-1)
-            pcn = va*(rn*(1+rn)**prn)/((1+rn)**prn-1)
-            eco = pca-pcn; ecot = pca*pra-pcn*prn; vale = eco > 0; ce = GREEN if vale else RED
-            st.markdown(f"""
-            <div style="background:{'#F0FDF4' if vale else '#FEF2F2'};border:1px solid {'#86EFAC' if vale else '#FECACA'};
-                border-radius:12px;padding:20px;margin-top:16px">
-                <div style="font-size:13px;font-weight:700;color:{ce};margin-bottom:14px">
-                    {'✅ Portabilidade VALE A PENA' if vale else '❌ Portabilidade NÃO compensa'}
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;text-align:center">
-                    {"".join([f'<div><div style="font-size:10px;color:#64748B;margin-bottom:3px">{l}</div><div style="font-size:17px;font-weight:700;color:{c3}">{v}</div></div>' for l,v,c3 in [("PARCELA ATUAL",fmt(pca),RED),("NOVA PARCELA",fmt(pcn),GREEN),("ECONOMIA/MÊS",fmt(abs(eco)),ce)]])}
-                </div>
-                <div style="text-align:center;margin-top:12px;font-size:12px;color:#64748B">
-                    Economia total no período: <strong style="color:{ce}">{fmt(abs(ecot))}</strong>
-                </div>
-            </div>""", unsafe_allow_html=True)
-
-# ═══ ALERTAS ═══
-elif "Alertas" in menu:
-    page_header("🔔", "Alertas de Oportunidade", "Radar inteligente por score de propensão")
-
-    df = load_clientes()
-    if df.empty:
-        st.info("Nenhum cliente cadastrado ainda.")
-        st.stop()
-
-    opp = df[df["margem"]>300].sort_values("score", ascending=False)
-    bx  = df[(df["margem"]>0)&(df["margem"]<=300)].sort_values("score", ascending=False)
-    sm  = df[df["margem"]<=0]
-    ph  = df[df["dias"].notna() & (df["dias"].astype(float)<=2)]
-
-    c1,c2,c3,c4 = st.columns(4)
-    with c1: kpi_html("Prioridade Alta", len(opp), "margem>R$300", "green")
-    with c2: kpi_html("Atenção",         len(bx),  "margem baixa", "yellow")
-    with c3: kpi_html("Sem Margem",      len(sm),  "portabilidade","red")
-    with c4: kpi_html("INSS Hoje/Amanhã",len(ph),  "urgente","yellow" if len(ph)>0 else "navy")
-
-    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-
-    if len(ph) > 0:
-        st.markdown(f"<div style='font-size:13px;font-weight:700;color:{RED};margin-bottom:10px'>🚨 INSS Cai Hoje ou Amanhã — Contatar Agora</div>", unsafe_allow_html=True)
-        for _, row in ph.iterrows():
-            st.markdown(f"""
-            <div class="alert-urgent">
-                <div class="alert-row">
-                    <div>
-                        <div class="alert-name">{row['nome']}</div>
-                        <div class="alert-sub">{row['tel_d']} · {row['interesse']} · Score {row['score']}%</div>
-                        <div style="margin-top:6px">{badge("🚨 URGENTE","red")} {badge(row['status'],"blue")}</div>
-                    </div>
-                    <div>
-                        <div class="alert-value-label">INSS em</div>
-                        <div style="font-size:26px;font-weight:800;color:{RED}">{int(row['dias'])} dia(s)</div>
-                        <div style="font-size:11px;color:#94A3B8">{row['prox'].strftime('%d/%m') if row['prox'] else ''}</div>
-                    </div>
-                </div>
-            </div>""", unsafe_allow_html=True)
-
-    if len(opp) > 0:
-        st.markdown(f"<div style='font-size:13px;font-weight:700;color:{GREEN};margin:14px 0 10px'>🟢 Contatar Esta Semana — {len(opp)} cliente(s)</div>", unsafe_allow_html=True)
-        for _, row in opp.iterrows():
-            high = row["score"] >= 75
-            st.markdown(f"""
-            <div class="alert-{'urgent' if high else 'opp'}">
-                <div class="alert-row">
-                    <div>
-                        <div class="alert-name">{row['nome']}</div>
-                        <div class="alert-sub">{row['tel_d']} · {row['interesse']} · {row['canal']}</div>
-                        <div style="margin-top:6px">
-                            {badge("🔥 Máxima","yellow") if high else badge("Oportunidade","green")}
-                            {badge(f"Score {row['score']}%","slate")}
-                            {badge(row['status'],"blue")}
-                        </div>
-                    </div>
-                    <div style="text-align:right">
-                        <div class="alert-value-label">Margem disponível</div>
-                        <div class="alert-value">{fmt(row['margem'])}</div>
-                        <div style="font-size:11px;color:#94A3B8">Benefício: {fmt(row['beneficio'])}</div>
-                    </div>
-                </div>
-            </div>""", unsafe_allow_html=True)
-
-    if len(bx) > 0:
-        st.markdown(f"<div style='font-size:13px;font-weight:700;color:{YELLOW};margin:14px 0 10px'>🟡 Margem Baixa — {len(bx)} cliente(s)</div>", unsafe_allow_html=True)
-        for _, row in bx.iterrows():
-            st.markdown(f"""
-            <div style="background:white;border-radius:10px;padding:10px 14px;margin-bottom:6px;
-                border-left:3px solid {YELLOW};box-shadow:0 1px 3px rgba(0,0,0,0.05);
-                display:flex;justify-content:space-between;align-items:center">
-                <div>
-                    <span style="font-weight:600;color:{NAVY}">{row['nome']}</span>
-                    <span style="font-size:11px;color:#94A3B8;margin-left:8px">{row['tel_d']}</span>
-                </div>
-                <span style="font-weight:600;color:{YELLOW}">{fmt(row['margem'])} disponível</span>
-            </div>""", unsafe_allow_html=True)
-
-    if len(sm) > 0:
-        st.markdown(f"<div style='font-size:13px;font-weight:700;color:{RED};margin:14px 0 10px'>🔴 Sem Margem — Indicar Portabilidade — {len(sm)}</div>", unsafe_allow_html=True)
-        for _, row in sm.iterrows():
-            st.markdown(f"""
-            <div style="background:white;border-radius:10px;padding:10px 14px;margin-bottom:6px;
-                border-left:3px solid {RED};box-shadow:0 1px 3px rgba(0,0,0,0.05);
-                display:flex;justify-content:space-between;align-items:center">
-                <span style="font-weight:600;color:{NAVY}">{row['nome']}</span>
-                <span style="font-size:11px;color:{RED}">Verificar portabilidade</span>
-            </div>""", unsafe_allow_html=True)
-
-# ═══ AGENDA ═══
 elif "Agenda" in menu:
     page_header("📅", "Agenda de Follow-ups", "Seus compromissos e lembretes de contato")
 
