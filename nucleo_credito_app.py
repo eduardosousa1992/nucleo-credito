@@ -408,20 +408,20 @@ def dec(t):
     except: return t
 
 def mask_cpf(c):
-    """Máscara LGPD para exibição no sistema: ***.XXX.XXX-** """
+    """Máscara parcial: 621.XXX.XXX-12 — primeiros 3 e últimos 2 visíveis"""
     d = "".join(filter(str.isdigit, c or ""))
     if len(d) == 11:
-        return f"***.{d[3:6]}.{d[6:9]}-**"
-    return "***.***.***-**"
+        return f"{d[0:3]}.XXX.XXX-{d[9:11]}"
+    return "XXX.XXX.XXX-XX"
 
 def mask_tel(t):
-    """Máscara LGPD para exibição no sistema"""
+    """Máscara parcial: (86) 952-XXX-015 — DDD + 3 primeiros + 3 últimos"""
     d = "".join(filter(str.isdigit, t or ""))
     if len(d) == 11:
-        return f"({d[:2]}) *****-{d[-4:]}"
+        return f"({d[0:2]}) {d[2:5]}-XXX-{d[8:11]}"
     elif len(d) == 10:
-        return f"({d[:2]}) ****-{d[-4:]}"
-    return "(**)*****-****"
+        return f"({d[0:2]}) {d[2:5]}-XX-{d[7:10]}"
+    return "(XX) XXX-XXX-XXX"
 
 # ── INSS 2026 ────────────────────────────────────────────────────────────────
 INSS = {
@@ -1146,12 +1146,13 @@ elif "Clientes" in menu:
                 nome     = st.text_input("Nome Completo *")
                 nome_soc = st.text_input("Nome Social", placeholder="Como prefere ser chamado/a")
                 cpf_raw  = st.text_input("CPF *", placeholder="000.000.000-00",
-                    help="Formato: 000.000.000-00 — será validado e criptografado")
+                    help="Digite apenas os 11 números. Ex: 604.456.856-12")
                 tel_raw  = st.text_input("Telefone *", placeholder="(00) 00000-0000",
-                    help="Será criptografado — armazenado com segurança")
+                    help="Com DDD. Ex: (86) 99999-0001")
                 email    = st.text_input("Email", placeholder="exemplo@email.com")
                 dn       = st.date_input("Data de Nascimento", value=date(1960,1,1),
-                                         min_value=date(1920,1,1), max_value=date(2005,1,1))
+                                         min_value=date(1920,1,1), max_value=date(2005,1,1),
+                                         format="DD/MM/YYYY")
             with c2:
                 st.markdown("<div style='color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px'>Benefício</div>", unsafe_allow_html=True)
                 tipo_ben  = st.selectbox("Tipo de Benefício *", ['Aposentadoria por Idade (Urbana)', 'Aposentadoria por Idade da Pessoa com Deficiência', 'Aposentadoria por Idade Rural', 'Aposentadoria por Incapacidade Permanente (Urbana)', 'Aposentadoria por Incapacidade Permanente (Rural)', 'Aposentadoria por Incapacidade Permanente (Acidentária)', 'Aposentadoria por Tempo de Contribuição', 'Aposentadoria por Tempo de Contribuição da Pessoa com Deficiência', 'Aposentadoria por Tempo de Contribuição — Regra de Transição', 'Aposentadoria Especial', 'Aposentadoria Especial — Professor', 'Aposentadoria Especial — Aeronauta', 'Aposentadoria Rural — Segurado Especial', 'Aposentadoria Híbrida', 'Pensão por Morte (Urbana)', 'Pensão por Morte (Rural)', 'Pensão por Morte (Acidentária)', 'Pensão Especial — Síndrome da Talidomida', 'Pensão Especial — Síndrome Congênita do Zika Vírus', 'Auxílio por Incapacidade Temporária — Urbano (antigo Aux. Doença)', 'Auxílio por Incapacidade Temporária — Acidentário', 'Auxílio-Acidente (consignável)', 'Auxílio-Reclusão — Urbano (consignável)', 'Auxílio-Reclusão — Rural (consignável)', 'Auxílio-Inclusão', 'Salário-Maternidade — Urbano', 'Salário-Maternidade — Rural', 'Salário-Família', 'BPC/LOAS — Idoso (cartão consignado; empréstimo com restrições)', 'BPC/LOAS — Pessoa com Deficiência (cartão consignado; empréstimo com restrições)', 'Servidor Público Federal — RPPS', 'Servidor Público Estadual — RPPS', 'Servidor Público Municipal — RPPS', 'Militar das Forças Armadas', 'Policial Militar Estadual', 'Renda Mensal Vitalícia', 'Outro'])
@@ -1163,11 +1164,15 @@ elif "Clientes" in menu:
                     st.info("Benefício temporário: consignado tradicional não recomendado.")
                 else:
                     st.success("Benefício consignável — margem 40%.")
-                ben    = st.number_input("Valor do Benefício (R$) *", min_value=0.0, step=50.0)
-                par    = st.number_input("Parcelas Ativas (R$)", min_value=0.0, step=50.0,
-                    help="Total de descontos já comprometidos")
+                ben    = st.number_input("Valor do Benefício (R$) *",
+                    min_value=0.0, step=50.0, format="%.2f",
+                    help="Digite o valor. Ex: 1621.00 → R$ 1.621,00")
+                par    = st.number_input("Parcelas Ativas (R$)",
+                    min_value=0.0, step=0.01, format="%.2f",
+                    help="Ex: 32.50 ou 1000.32 — total de descontos ativos")
                 data_conc = st.date_input("Data de Concessão do Benefício",
                     value=date(2020,1,1), min_value=date(2000,1,1),
+                    format="DD/MM/YYYY",
                     help="Importante: carência de 10 meses para consignado (PL 1037/2025)")
                 bloq = st.checkbox("Benefício bloqueado para consignado?",
                     help="Após cada operação o INSS bloqueia — precisa desbloquear no Meu INSS")
@@ -1257,38 +1262,35 @@ elif "Clientes" in menu:
 
                 nome_exib = row.get('nome_social','') or row['nome']
                 nome_comp = row['nome'] if row.get('nome_social') else ''
-                st.markdown(f"""
-                <div style="background:#0D1B35;border:1px solid rgba(74,222,128,0.2);border-radius:14px;
-                    padding:18px 20px;margin:8px 0;border-left:4px solid {'#4ADE80' if m>300 else '#EF4444' if m<=0 else '#FBBF24'}">
-                    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
-                        <div>
-                            <div style="font-size:18px;font-weight:800;color:white">{nome_exib}</div>
-                            {"<div style='font-size:11px;color:rgba(255,255,255,0.3);margin-top:1px'>"+nome_comp+"</div>" if nome_comp else ""}
-                            <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:3px">
-                                {row['tel_d']} · {row.get('canal','')} · {row.get('interesse','')}
-                                {" · "+row.get('tipo_beneficio','') if row.get('tipo_beneficio') else ""}
-                            </div>
-                            <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
-                                {badge(row['status'],'blue')}
-                                {badge(f"Score {row['score']}%",'green' if row['score']>=75 else 'yellow' if row['score']>=50 else 'red')}
-                                {badge('Oportunidade','green') if m>300 else badge('Sem margem','red') if m<=0 else badge('Margem baixa','yellow')}
-                            </div>
-                        </div>
-                        <div style="text-align:right">
-                            <div style="font-size:10px;color:rgba(255,255,255,0.3)">Margem disponível</div>
-                            <div style="font-size:26px;font-weight:800;color:{'#4ADE80' if m>300 else '#EF4444' if m<=0 else '#FBBF24'}">{fmt(m)}</div>
-                            <div style="font-size:10px;color:rgba(255,255,255,0.3)">Benefício: {fmt(row['beneficio'])}</div>
-                        </div>
-                    </div>
-                    <div style="margin-top:12px">
-                        <div style="display:flex;justify-content:space-between;font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:4px">
-                            <span>Margem comprometida</span><span>{pct_c:.0f}%</span>
-                        </div>
-                        <div style="background:rgba(255,255,255,0.07);border-radius:99px;height:6px;overflow:hidden">
-                            <div style="width:{pct_c}%;height:100%;background:{bar_c};border-radius:99px"></div>
-                        </div>
-                    </div>
-                </div>""", unsafe_allow_html=True)
+                pct_c = row['pct']
+                bar_c = "#4ADE80" if pct_c<60 else "#FBBF24" if pct_c<90 else "#EF4444"
+                borda = '#4ADE80' if m>300 else '#EF4444' if m<=0 else '#FBBF24'
+                nome_soc_html = f"<div style='font-size:11px;color:rgba(255,255,255,0.3);margin-top:1px'>{nome_comp}</div>" if nome_comp else ""
+                tipo_ben_html = f" · {row.get('tipo_beneficio','')}" if row.get('tipo_beneficio') else ""
+                header_html = (
+                    f'<div style="background:#0D1B35;border:1px solid rgba(74,222,128,0.2);border-radius:14px;padding:18px 20px;margin:8px 0;border-left:4px solid {borda}">'
+                    f'<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">'
+                    f'<div>'
+                    f'<div style="font-size:18px;font-weight:800;color:white">{nome_exib}</div>'
+                    f'{nome_soc_html}'
+                    f'<div style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:3px">{row["tel_d"]} · {row.get("canal","")} · {row.get("interesse","")}{tipo_ben_html}</div>'
+                    f'<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'
+                    f'{badge(row["status"],"blue")}'
+                    f'{badge(f'Score {row["score"]}%', "green" if row["score"]>=75 else "yellow" if row["score"]>=50 else "red")}'
+                    f'{""+badge("Oportunidade","green") if m>300 else badge("Sem margem","red") if m<=0 else badge("Margem baixa","yellow")}'
+                    f'</div></div>'
+                    f'<div style="text-align:right">'
+                    f'<div style="font-size:10px;color:rgba(255,255,255,0.3)">Margem disponível</div>'
+                    f'<div style="font-size:26px;font-weight:800;color:{borda}">{fmt(m)}</div>'
+                    f'<div style="font-size:10px;color:rgba(255,255,255,0.3)">Benefício: {fmt(row["beneficio"])}</div>'
+                    f'</div></div>'
+                    f'<div style="margin-top:12px">'
+                    f'<div style="display:flex;justify-content:space-between;font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:4px"><span>Margem comprometida</span><span>{pct_c:.0f}%</span></div>'
+                    f'<div style="background:rgba(255,255,255,0.07);border-radius:99px;height:6px;overflow:hidden">'
+                    f'<div style="width:{pct_c}%;height:100%;background:{bar_c};border-radius:99px"></div>'
+                    f'</div></div></div>'
+                )
+                st.markdown(header_html, unsafe_allow_html=True)
 
                 # 4 abas da visão 360°
                 t360_dados, t360_hist, t360_acao, t360_contrato = st.tabs([
