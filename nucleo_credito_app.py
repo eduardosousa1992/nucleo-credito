@@ -93,31 +93,41 @@ button[title="Collapse sidebar"] {{
     background: rgba(26,122,94,0.04) !important;
     border: 1.5px dashed rgba(26,122,94,0.35) !important;
     border-radius: 12px !important;
-    padding: 16px 20px !important;
+    padding: 14px 18px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
 }}
 [data-testid="stFileUploader"] section:hover {{
     border-color: rgba(26,122,94,0.7) !important;
-    background: rgba(26,122,94,0.08) !important;
+    background: rgba(26,122,94,0.06) !important;
 }}
-[data-testid="stFileUploader"] section > button,
-[data-testid="stFileUploaderDropzone"] > button {{
+[data-testid="stFileUploader"] section > button {{
     background: linear-gradient(135deg, #1A7A5E, #156B51) !important;
     color: white !important;
     border: none !important;
     border-radius: 8px !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
     font-size: 12px !important;
-    padding: 7px 16px !important;
+    padding: 8px 16px !important;
+    min-width: 100px !important;
+    white-space: nowrap !important;
 }}
-[data-testid="stFileUploader"] span,
-[data-testid="stFileUploader"] small {{
+[data-testid="stFileUploader"] section > button::before {{
+    content: "📎 Escolher arquivo" !important;
+}}
+[data-testid="stFileUploader"] section > button span {{
+    display: none !important;
+}}
+[data-testid="stFileUploader"] section > div > span:first-child {{
+    display: none !important;
+}}
+[data-testid="stFileUploader"] section > div > small {{
     color: rgba(255,255,255,0.35) !important;
-    font-size: 11px !important;
+    font-size: 10px !important;
 }}
 [data-testid="stFileUploader"] label {{
-    color: rgba(255,255,255,0.7) !important;
-    font-size: 12px !important;
-    font-weight: 600 !important;
+    display: none !important;
 }}
 
 /* ── SIDEBAR RADIO MENU ── */
@@ -1593,24 +1603,26 @@ elif "Clientes" in menu:
 
                     doc_tipos = ["RG / CNH", "CPF", "Comprovante de Residência", "Extrato INSS / Carta de Concessão", "Contracheque / Holerite", "Proposta Assinada", "Contrato", "Outros"]
 
-                    st.markdown("""
-                    <div style="background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.15);
-                        border-radius:12px;padding:16px;margin-bottom:12px">
-                        <div style="color:rgba(255,255,255,0.6);font-size:12px;font-weight:600;margin-bottom:10px">
-                            📎 Adicionar documento
-                        </div>""", unsafe_allow_html=True)
+                    # CSS para esconder label nativo do uploader
+                    st.markdown(f"""
+                    <style>
+                    [data-testid="stFileUploader"][key="upload_{row['id']}"] label {{
+                        display: none !important;
+                    }}
+                    </style>
+                    """, unsafe_allow_html=True)
 
                     col_up1, col_up2 = st.columns([1,2])
                     with col_up1:
-                        doc_tipo = st.selectbox("Tipo", doc_tipos, key=f"dtype_{row['id']}")
+                        doc_tipo = st.selectbox("Tipo de documento", doc_tipos,
+                            key=f"dtype_{row['id']}", label_visibility="visible")
                     with col_up2:
                         arquivo = st.file_uploader(
-                            "Arquivo (PDF, JPG, PNG — máx. 200MB)",
+                            "Selecionar arquivo",
                             type=["pdf","jpg","jpeg","png"],
-                            key=f"upload_{row['id']}"
+                            key=f"upload_{row['id']}",
+                            label_visibility="collapsed"
                         )
-
-                    st.markdown('</div>', unsafe_allow_html=True)
 
                     if arquivo and sb:
                         if st.button("📎 Salvar documento", key=f"savdoc_{row['id']}", use_container_width=True):
