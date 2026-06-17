@@ -1140,49 +1140,70 @@ elif "Clientes" in menu:
         st.session_state["show_form_cli"] = not st.session_state.get("show_form_cli", False)
     if st.session_state.get("show_form_cli", False):
         with st.form("form_cli", clear_on_submit=True):
-            c1, c2 = st.columns(2)
+            c1, c2, c3 = st.columns(3)
             with c1:
-                nome  = st.text_input("Nome Completo *")
-                cpf   = st.text_input("CPF (será criptografado)")
-                tel   = st.text_input("Telefone (será criptografado)")
-                email = st.text_input("Email (para mailing)")
-                dn    = st.date_input("Data Nascimento", value=date(1960,1,1),
-                                      min_value=date(1930,1,1), max_value=date(2005,1,1))
+                st.markdown("<div style='color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px'>Identificação</div>", unsafe_allow_html=True)
+                nome     = st.text_input("Nome Completo *")
+                nome_soc = st.text_input("Nome Social", placeholder="Como prefere ser chamado/a")
+                cpf_raw  = st.text_input("CPF *", placeholder="000.000.000-00",
+                    help="Formato: 000.000.000-00 — será validado e criptografado")
+                tel_raw  = st.text_input("Telefone *", placeholder="(00) 00000-0000",
+                    help="Será criptografado — armazenado com segurança")
+                email    = st.text_input("Email", placeholder="exemplo@email.com")
+                dn       = st.date_input("Data de Nascimento", value=date(1960,1,1),
+                                         min_value=date(1920,1,1), max_value=date(2005,1,1))
             with c2:
-                ben    = st.number_input("Benefício / Salário (R$) *", min_value=0.0, step=50.0)
-                par    = st.number_input("Parcelas Ativas (R$)", min_value=0.0, step=50.0)
-                canal  = st.selectbox("Canal", ["Panfletagem","Rádio","WhatsApp","Indicação","Instagram","Google","Presencial"])
-                status = st.selectbox("Status", ["Lead Quente","Em análise","Ativo"])
-                int_   = st.selectbox("Interesse", ["Consignado INSS","Portabilidade","Refinanciamento","Cartão Consignado","Consignado Servidor","Desenrola Brasil"])
-                # Info de consignabilidade automática
-                _eh_bpc = "BPC" in tipo_ben or "LOAS" in tipo_ben
+                st.markdown("<div style='color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px'>Benefício</div>", unsafe_allow_html=True)
+                tipo_ben  = st.selectbox("Tipo de Benefício *", ['Aposentadoria por Idade (Urbana)', 'Aposentadoria por Idade da Pessoa com Deficiência', 'Aposentadoria por Idade Rural', 'Aposentadoria por Incapacidade Permanente (Urbana)', 'Aposentadoria por Incapacidade Permanente (Rural)', 'Aposentadoria por Incapacidade Permanente (Acidentária)', 'Aposentadoria por Tempo de Contribuição', 'Aposentadoria por Tempo de Contribuição da Pessoa com Deficiência', 'Aposentadoria por Tempo de Contribuição — Regra de Transição', 'Aposentadoria Especial', 'Aposentadoria Especial — Professor', 'Aposentadoria Especial — Aeronauta', 'Aposentadoria Rural — Segurado Especial', 'Aposentadoria Híbrida', 'Pensão por Morte (Urbana)', 'Pensão por Morte (Rural)', 'Pensão por Morte (Acidentária)', 'Pensão Especial — Síndrome da Talidomida', 'Pensão Especial — Síndrome Congênita do Zika Vírus', 'Auxílio por Incapacidade Temporária — Urbano (antigo Aux. Doença)', 'Auxílio por Incapacidade Temporária — Acidentário', 'Auxílio-Acidente (consignável)', 'Auxílio-Reclusão — Urbano (consignável)', 'Auxílio-Reclusão — Rural (consignável)', 'Auxílio-Inclusão', 'Salário-Maternidade — Urbano', 'Salário-Maternidade — Rural', 'Salário-Família', 'BPC/LOAS — Idoso (cartão consignado; empréstimo com restrições)', 'BPC/LOAS — Pessoa com Deficiência (cartão consignado; empréstimo com restrições)', 'Servidor Público Federal — RPPS', 'Servidor Público Estadual — RPPS', 'Servidor Público Municipal — RPPS', 'Militar das Forças Armadas', 'Policial Militar Estadual', 'Renda Mensal Vitalícia', 'Outro'])
+                _eh_bpc  = "BPC" in tipo_ben or "LOAS" in tipo_ben
                 _eh_temp = any(x in tipo_ben for x in ["Temporária","Maternidade","Família","Inclusão"])
                 if _eh_bpc:
-                    st.warning("⚠️ BPC/LOAS: cartão consignado permitido. Empréstimo tradicional com restrições. Margem: 35%.")
+                    st.warning("BPC/LOAS: cartão consignado OK. Empréstimo tradicional com restrições. Margem 35%.")
                 elif _eh_temp:
-                    st.info("ℹ️ Benefício temporário: consignado tradicional não recomendado. Verifique elegibilidade.")
+                    st.info("Benefício temporário: consignado tradicional não recomendado.")
                 else:
-                    st.success("✅ Benefício consignável — margem 40%.")
+                    st.success("Benefício consignável — margem 40%.")
+                ben    = st.number_input("Valor do Benefício (R$) *", min_value=0.0, step=50.0)
+                par    = st.number_input("Parcelas Ativas (R$)", min_value=0.0, step=50.0,
+                    help="Total de descontos já comprometidos")
+                data_conc = st.date_input("Data de Concessão do Benefício",
+                    value=date(2020,1,1), min_value=date(2000,1,1),
+                    help="Importante: carência de 10 meses para consignado (PL 1037/2025)")
+                bloq = st.checkbox("Benefício bloqueado para consignado?",
+                    help="Após cada operação o INSS bloqueia — precisa desbloquear no Meu INSS")
+                rep_legal = st.checkbox("Possui representante legal no INSS?",
+                    help="Se SIM: não pode contratar consignado")
+                if rep_legal:
+                    st.error("Lead inelegível para consignado — possui representante legal.")
+            with c3:
+                st.markdown("<div style='color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px'>Comercial</div>", unsafe_allow_html=True)
+                canal  = st.selectbox("Canal de Entrada", ["Indicação","WhatsApp","Panfletagem","Rádio","Instagram","Google","Presencial","Outros"])
+                int_   = st.selectbox("Produto de Interesse", ["Consignado INSS","Portabilidade","Refinanciamento","Cartão Consignado","Consignado Servidor","Desenrola Brasil","Empréstimo Pessoal"])
+                status = st.selectbox("Status", ["Lead Quente","Em análise","Ativo"])
+                obs    = st.text_area("Observações", height=120)
 
-                bloq   = st.checkbox("Benefício bloqueado para consignado?", help="Após averbação, INSS bloqueia para novas operações")
-            obs = st.text_area("Observações", height=60)
+            # Validação CPF
+            cpf_valido = validar_cpf(cpf_raw) if cpf_raw else True
+            if cpf_raw and not cpf_valido:
+                st.error("CPF inválido — verifique os dígitos verificadores.")
 
             if st.form_submit_button("✅ Cadastrar Cliente", use_container_width=True):
                 if not nome or not ben:
                     st.error("Nome e Benefício são obrigatórios.")
+                elif cpf_raw and not cpf_valido:
+                    st.error("Corrija o CPF antes de salvar.")
+                elif rep_legal:
+                    st.error("Não é possível cadastrar: beneficiário com representante legal é inelegível.")
                 else:
-                    if cpf_raw and not cpf_valido:
-                        st.error("Corrija o CPF antes de salvar.")
-                    else:
-                        obs_final = obs
-                        if bloq: obs_final = f"[BENEFÍCIO BLOQUEADO] {obs}"
-                        ins_cli({"nome":nome,"nome_social":nome_soc,"cpf":cpf_raw,
-                            "telefone":tel_raw,"email":email,"data_nasc":str(dn),
-                            "beneficio":float(ben),"parcelas":float(par),"canal":canal,
-                            "status":status,"interesse":int_,"tipo_beneficio":tipo_ben,
-                            "data_concessao":str(data_conc),"representante_legal":rep_legal,
-                            "observacoes":obs_final})
-                    st.success(f"✅ {nome} cadastrado!")
+                    obs_final = obs
+                    if bloq: obs_final = f"[BENEFÍCIO BLOQUEADO — desbloqueio no Meu INSS necessário] {obs}"
+                    ins_cli({"nome":nome,"nome_social":nome_soc,"cpf":cpf_raw,
+                        "telefone":tel_raw,"email":email,"data_nasc":str(dn),
+                        "beneficio":float(ben),"parcelas":float(par),"canal":canal,
+                        "status":status,"interesse":int_,"tipo_beneficio":tipo_ben,
+                        "data_concessao":str(data_conc),"representante_legal":rep_legal,
+                        "observacoes":obs_final})
+                    st.success(f"✅ {nome} cadastrado com sucesso!")
                     st.rerun()
 
     df = load_clientes()
