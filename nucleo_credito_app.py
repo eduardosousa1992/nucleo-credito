@@ -1560,12 +1560,25 @@ elif "Clientes" in menu:
                     st.markdown('<div style="color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Documentos do Cliente</div>', unsafe_allow_html=True)
 
                     doc_tipos = ["RG / CNH", "CPF", "Comprovante de Residência", "Extrato INSS / Carta de Concessão", "Contracheque / Holerite", "Proposta Assinada", "Contrato", "Outros"]
-                    col_up1, col_up2 = st.columns(2)
+
+                    st.markdown("""
+                    <div style="background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.15);
+                        border-radius:12px;padding:16px;margin-bottom:12px">
+                        <div style="color:rgba(255,255,255,0.6);font-size:12px;font-weight:600;margin-bottom:10px">
+                            📎 Adicionar documento
+                        </div>""", unsafe_allow_html=True)
+
+                    col_up1, col_up2 = st.columns([1,2])
                     with col_up1:
-                        doc_tipo = st.selectbox("Tipo de documento", doc_tipos, key=f"dtype_{row['id']}", label_visibility="collapsed")
+                        doc_tipo = st.selectbox("Tipo", doc_tipos, key=f"dtype_{row['id']}")
                     with col_up2:
-                        arquivo = st.file_uploader("Enviar documento", type=["pdf","jpg","jpeg","png"],
-                            key=f"upload_{row['id']}", label_visibility="collapsed")
+                        arquivo = st.file_uploader(
+                            "Arquivo (PDF, JPG, PNG — máx. 200MB)",
+                            type=["pdf","jpg","jpeg","png"],
+                            key=f"upload_{row['id']}"
+                        )
+
+                    st.markdown('</div>', unsafe_allow_html=True)
 
                     if arquivo and sb:
                         if st.button("📎 Salvar documento", key=f"savdoc_{row['id']}", use_container_width=True):
@@ -1703,13 +1716,34 @@ elif "Contratos" in menu:
         dfc["comissao"] = (dfc["valor"]*0.03).round(2)
 
         st.markdown('<div class="chart-card"><div class="chart-title">📋 Carteira de Contratos</div>', unsafe_allow_html=True)
-        st.dataframe(
-            dfc[["cliente_nome","banco","valor","parcelas_total","parcela","comissao","data_inicio"]].rename(columns={
-                "cliente_nome":"Cliente","banco":"Banco","valor":"Valor (R$)",
-                "parcelas_total":"Parcelas","parcela":"Parcela/mês","comissao":"Comissão","data_inicio":"Início"
-            }),
-            use_container_width=True, hide_index=True
-        )
+        # Header da tabela
+        st.markdown("""
+        <div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 1fr 1fr 1fr 1fr;
+            gap:8px;padding:8px 12px;background:rgba(255,255,255,0.04);
+            border-radius:8px;margin-bottom:4px">
+            <span style="font-size:10px;color:rgba(255,255,255,0.4);font-weight:700;text-transform:uppercase">Cliente</span>
+            <span style="font-size:10px;color:rgba(255,255,255,0.4);font-weight:700;text-transform:uppercase">Banco</span>
+            <span style="font-size:10px;color:rgba(255,255,255,0.4);font-weight:700;text-transform:uppercase">Valor</span>
+            <span style="font-size:10px;color:rgba(255,255,255,0.4);font-weight:700;text-transform:uppercase">Parcelas</span>
+            <span style="font-size:10px;color:rgba(255,255,255,0.4);font-weight:700;text-transform:uppercase">Parcela/mês</span>
+            <span style="font-size:10px;color:rgba(255,255,255,0.4);font-weight:700;text-transform:uppercase">Comissão</span>
+            <span style="font-size:10px;color:rgba(255,255,255,0.4);font-weight:700;text-transform:uppercase">Início</span>
+        </div>""", unsafe_allow_html=True)
+        for _, r in dfc.iterrows():
+            st.markdown(
+                f'<div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 1fr 1fr 1fr 1fr;'
+                f'gap:8px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.05);'
+                f'align-items:center">'
+                f'<span style="font-size:12px;color:white;font-weight:600">{r.get("cliente_nome","")}</span>'
+                f'<span style="font-size:12px;color:rgba(255,255,255,0.7)">{r.get("banco","")}</span>'
+                f'<span style="font-size:12px;color:#4ADE80;font-weight:700">{fmt(r.get("valor",0))}</span>'
+                f'<span style="font-size:12px;color:rgba(255,255,255,0.6)">{int(r.get("parcelas_total",0))}x</span>'
+                f'<span style="font-size:12px;color:rgba(255,255,255,0.6)">{fmt(r.get("parcela",0))}</span>'
+                f'<span style="font-size:12px;color:#4ADE80">{fmt(r.get("comissao",0))}</span>'
+                f'<span style="font-size:11px;color:rgba(255,255,255,0.4)">{str(r.get("data_inicio",""))[:10]}</span>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
         st.markdown('</div>', unsafe_allow_html=True)
 
         # Export contratos
