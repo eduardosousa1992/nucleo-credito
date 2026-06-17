@@ -773,6 +773,41 @@ def fmt(v):
     except:
         return "R$ 0,00"
 
+def parse_valor(s):
+    """Converte entrada do usuário para float.
+    Aceita: 2562 / 2562,00 / 2.562,00 / 2562.00
+    Retorna float ou 0.0"""
+    try:
+        s = str(s).strip().replace("R$","").replace(" ","")
+        # Remove pontos de milhar, troca vírgula decimal por ponto
+        if "," in s and "." in s:
+            # Ex: 2.562,00 → remover ponto, trocar vírgula
+            s = s.replace(".","").replace(",",".")
+        elif "," in s:
+            # Ex: 2562,00 → trocar vírgula por ponto
+            s = s.replace(",",".")
+        return max(0.0, float(s))
+    except:
+        return 0.0
+
+def input_valor(label, key, value=0.0, help_text=""):
+    """Campo de valor monetário com formatação automática.
+    O usuário digita: 2562 ou 2562,00 ou 2.562,00
+    O sistema exibe: 2.562,00 embaixo em tempo real."""
+    val_str = st.text_input(
+        label,
+        value=f"{value:,.2f}".replace(",","X").replace(".",",").replace("X",".") if value else "",
+        placeholder="0,00",
+        key=key,
+        help=help_text or "Digite o valor. Ex: 2562,00 ou 2.562,00"
+    )
+    parsed = parse_valor(val_str)
+    if val_str and parsed > 0:
+        st.caption(f"✅ {fmt(parsed)}")
+    elif val_str and val_str not in ["", "0,00", "0"]:
+        st.caption("⚠️ Formato inválido")
+    return parsed
+
 def validar_cpf(cpf):
     """Valida CPF e retorna True se válido"""
     d = "".join(filter(str.isdigit, cpf or ""))
@@ -1164,12 +1199,10 @@ elif "Clientes" in menu:
                     st.info("Benefício temporário: consignado tradicional não recomendado.")
                 else:
                     st.success("Benefício consignável — margem 40%.")
-                ben    = st.number_input("Valor do Benefício (R$) *",
-                    min_value=0.0, step=50.0, format="%.2f",
-                    help="Digite o valor. Ex: 1621.00 → R$ 1.621,00")
-                par    = st.number_input("Parcelas Ativas (R$)",
-                    min_value=0.0, step=0.01, format="%.2f",
-                    help="Ex: 32.50 ou 1000.32 — total de descontos ativos")
+                ben = input_valor("Valor do Benefício (R$) *", key="cad_ben",
+                    help_text="Ex: 2562,00 ou 2.562,00")
+                par = input_valor("Parcelas Ativas (R$)", key="cad_par",
+                    help_text="Ex: 320,50 — total de descontos já ativos")
                 data_conc = st.date_input("Data de Concessão do Benefício",
                     value=date(2020,1,1), min_value=date(2000,1,1),
                     format="DD/MM/YYYY",
