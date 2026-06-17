@@ -706,6 +706,58 @@ def del_cli(id):
 def del_fu(id): sb.table("followups").delete().eq("id", id).execute()
 
 # ── EMAIL ─────────────────────────────────────────────────────────────────────
+def exportar_excel(df, nome_aba="Dados"):
+    """Exporta DataFrame para Excel em memória — download direto"""
+    import io
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name=nome_aba)
+    output.seek(0)
+    return output.getvalue()
+
+def exportar_clientes_excel(df):
+    """Prepara relatório de clientes para Excel"""
+    if df.empty: return None
+    cols = {
+        "nome": "Nome",
+        "cpf_d": "CPF (mascarado)",
+        "tel_d": "Telefone (mascarado)",
+        "email": "Email",
+        "canal": "Canal",
+        "status": "Status",
+        "interesse": "Interesse",
+        "tipo_beneficio": "Tipo Benefício",
+        "beneficio": "Benefício (R$)",
+        "parcelas": "Parcelas (R$)",
+        "margem": "Margem (R$)",
+        "pct": "Comprometido (%)",
+        "score": "Score (%)",
+        "created_at": "Cadastrado em",
+    }
+    cols_disp = {k:v for k,v in cols.items() if k in df.columns}
+    df_exp = df[list(cols_disp.keys())].rename(columns=cols_disp)
+    return exportar_excel(df_exp, "Clientes")
+
+def exportar_contratos_excel(dfc):
+    """Prepara relatório de contratos para Excel"""
+    if dfc.empty: return None
+    cols = {
+        "cliente_nome": "Cliente",
+        "banco": "Banco",
+        "valor": "Valor (R$)",
+        "parcelas_total": "Total Parcelas",
+        "parcelas_pagas": "Pagas",
+        "taxa_juros": "Taxa (% a.m.)",
+        "data_inicio": "Início",
+        "comissao": "Comissão (R$)",
+    }
+    if "comissao" not in dfc.columns:
+        dfc = dfc.copy()
+        dfc["comissao"] = (dfc["valor"] * 0.03).round(2)
+    cols_disp = {k:v for k,v in cols.items() if k in dfc.columns}
+    df_exp = dfc[list(cols_disp.keys())].rename(columns=cols_disp)
+    return exportar_excel(df_exp, "Contratos")
+
 def send_email(to_email, to_name, subject, html):
     try:
         import sib_api_v3_sdk
@@ -1171,6 +1223,19 @@ if "Dashboard" in menu:
 elif "Clientes" in menu:
     page_header("👥", "Gestão de Clientes", "Base segura com dados criptografados — LGPD")
 
+    # Botão de export no topo direito
+    _df_exp = load_clientes()
+    if not _df_exp.empty:
+        _excel = exportar_clientes_excel(_df_exp)
+        if _excel:
+            st.download_button(
+                label="📥 Exportar Clientes (.xlsx)",
+                data=_excel,
+                file_name=f"nucleo_credito_clientes_{date.today().strftime('%d%m%Y')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="exp_cli"
+            )
+
     if st.button("＋ Cadastrar Novo Cliente", key="btn_new_cli"):
         st.session_state["show_form_cli"] = not st.session_state.get("show_form_cli", False)
     if st.session_state.get("show_form_cli", False):
@@ -1491,6 +1556,65 @@ elif "Clientes" in menu:
                         st.rerun()
 
                 with t360_contrato:
+                    # Upload de documentos
+                    st.markdown('<div style="color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Documentos do Cliente</div>', unsafe_allow_html=True)
+
+                    doc_tipos = ["RG / CNH", "CPF", "Comprovante de Residência", "Extrato INSS / Carta de Concessão", "Contracheque / Holerite", "Proposta Assinada", "Contrato", "Outros"]
+                    col_up1, col_up2 = st.columns(2)
+                    with col_up1:
+                        doc_tipo = st.selectbox("Tipo de documento", doc_tipos, key=f"dtype_{row['id']}", label_visibility="collapsed")
+                    with col_up2:
+                        arquivo = st.file_uploader("Enviar documento", type=["pdf","jpg","jpeg","png"],
+                            key=f"upload_{row['id']}", label_visibility="collapsed")
+
+                    if arquivo and sb:
+                        if st.button("📎 Salvar documento", key=f"savdoc_{row['id']}", use_container_width=True):
+                            try:
+                                nome_arq = f"clientes/{row['id']}/{doc_tipo.replace(' ','_').replace('/','_')}_{arquivo.name}"
+                                sb.storage.from_("documentos").upload(
+                                    path=nome_arq,
+                                    file=arquivo.getvalue(),
+                                    file_options={"content-type": arquivo.type, "upsert": "true"}
+                                )
+                                st.success(f"✅ {doc_tipo} salvo com sucesso!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao salvar: {e}")
+
+                    # Listar documentos existentes
+                    if sb:
+                        try:
+                            pasta = f"clientes/{row['id']}"
+                            docs = sb.storage.from_("documentos").list(pasta)
+                            if docs:
+                                st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+                                for doc in docs:
+                                    nome_doc = doc.get('name','')
+                                    if not nome_doc: continue
+                                    caminho = f"{pasta}/{nome_doc}"
+                                    url = sb.storage.from_("documentos").get_public_url(caminho)
+                                    tipo_label = nome_doc.split('_')[0].replace('_',' ') if '_' in nome_doc else nome_doc
+                                    d1, d2 = st.columns([4,1])
+                                    with d1:
+                                        st.markdown(f"""
+                                        <div style="background:rgba(255,255,255,0.04);border-radius:9px;padding:8px 12px;
+                                            margin-bottom:5px;border-left:3px solid #60A5FA;display:flex;align-items:center;gap:8px">
+                                            <span style="font-size:16px">📄</span>
+                                            <div>
+                                                <div style="color:white;font-size:12px;font-weight:600">{tipo_label}</div>
+                                                <div style="color:rgba(255,255,255,0.35);font-size:10px">{nome_doc}</div>
+                                            </div>
+                                        </div>""", unsafe_allow_html=True)
+                                    with d2:
+                                        st.markdown(f"<a href='{url}' target='_blank' style='display:block;text-align:center;padding:8px;background:rgba(96,165,250,0.15);border-radius:8px;color:#60A5FA;font-size:11px;text-decoration:none;margin-top:2px'>Ver</a>", unsafe_allow_html=True)
+                            else:
+                                st.markdown('<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:12px 0">Nenhum documento enviado ainda.</div>', unsafe_allow_html=True)
+                        except Exception as e:
+                            st.markdown('<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:8px 0">Configure o bucket "documentos" no Supabase Storage para habilitar uploads.</div>', unsafe_allow_html=True)
+
+                    st.markdown('<hr style="border-color:rgba(255,255,255,0.08);margin:14px 0">', unsafe_allow_html=True)
+                    st.markdown('<div style="color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Contratos do Cliente</div>', unsafe_allow_html=True)
+
                     # Contratos do cliente
                     try:
                         r_ct = sb.table("contratos").select("*").eq("cliente_id", row["id"]).execute() if sb else None
@@ -1587,6 +1711,17 @@ elif "Contratos" in menu:
             use_container_width=True, hide_index=True
         )
         st.markdown('</div>', unsafe_allow_html=True)
+
+        # Export contratos
+        _excel_ct = exportar_contratos_excel(dfc)
+        if _excel_ct:
+            st.download_button(
+                label="📥 Exportar Carteira (.xlsx)",
+                data=_excel_ct,
+                file_name=f"nucleo_credito_contratos_{date.today().strftime('%d%m%Y')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="exp_ct"
+            )
 
 # ═══ SIMULADOR ═══
 
@@ -2252,7 +2387,7 @@ elif "Email" in menu:
     with c3: kpi_html("Custo Mensal","R$ 0,00", "Brevo free",   "green")
 
     st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
-    t1, t2, t3 = st.tabs(["📅 Calendário INSS", "💡 Dica Financeira", "📣 Campanha Livre"])
+    t1, t2, t3, t4 = st.tabs(["📅 Calendário INSS", "💡 Dica Financeira", "📣 Campanha Livre", "🎯 Segmentação"])
 
     with t1:
         st.markdown("Envia o próximo pagamento INSS personalizado para cada cliente.")
@@ -2307,6 +2442,125 @@ elif "Email" in menu:
                     st.success(f"✅ {env3} email(s) enviado(s)!")
 
 # ═══ METAS ═══
+    with t4:
+        st.markdown("""
+        <div style="background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);
+            border-radius:10px;padding:12px 16px;margin-bottom:16px">
+            <div style="color:#60A5FA;font-size:12px;font-weight:700;margin-bottom:4px">
+                🎯 Campanha segmentada por perfil do cliente
+            </div>
+            <div style="color:rgba(255,255,255,0.55);font-size:11px">
+                Selecione o segmento e envie mensagem personalizada para o público certo.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        df_seg = load_clientes()
+        if df_seg.empty:
+            st.info("Nenhum cliente cadastrado.")
+        else:
+            col_s1, col_s2 = st.columns(2)
+            with col_s1:
+                seg_tipo = st.selectbox("Segmentar por", [
+                    "Tipo de Benefício",
+                    "Canal de Origem",
+                    "Status",
+                    "Margem Disponível",
+                    "Score de Propensão",
+                ])
+
+            # Filtro dinâmico por segmento
+            if seg_tipo == "Tipo de Benefício":
+                tipos_disp = sorted(df_seg["tipo_beneficio"].dropna().unique().tolist()) if "tipo_beneficio" in df_seg.columns else []
+                with col_s2:
+                    sel_seg = st.multiselect("Tipo(s)", tipos_disp, default=tipos_disp[:3] if tipos_disp else [])
+                df_filtrado = df_seg[df_seg["tipo_beneficio"].isin(sel_seg)] if sel_seg else pd.DataFrame()
+
+            elif seg_tipo == "Canal de Origem":
+                canais = sorted(df_seg["canal"].dropna().unique().tolist())
+                with col_s2:
+                    sel_seg = st.multiselect("Canal(is)", canais, default=canais)
+                df_filtrado = df_seg[df_seg["canal"].isin(sel_seg)] if sel_seg else pd.DataFrame()
+
+            elif seg_tipo == "Status":
+                statuses = sorted(df_seg["status"].dropna().unique().tolist())
+                with col_s2:
+                    sel_seg = st.multiselect("Status", statuses, default=statuses)
+                df_filtrado = df_seg[df_seg["status"].isin(sel_seg)] if sel_seg else pd.DataFrame()
+
+            elif seg_tipo == "Margem Disponível":
+                with col_s2:
+                    faixa = st.selectbox("Faixa", ["Acima de R$ 300", "Acima de R$ 500", "Acima de R$ 1.000", "Qualquer margem positiva"])
+                faixas = {"Acima de R$ 300": 300, "Acima de R$ 500": 500, "Acima de R$ 1.000": 1000, "Qualquer margem positiva": 1}
+                df_filtrado = df_seg[df_seg["margem"] >= faixas[faixa]]
+
+            elif seg_tipo == "Score de Propensão":
+                with col_s2:
+                    score_min = st.slider("Score mínimo", 0, 100, 70)
+                df_filtrado = df_seg[df_seg["score"] >= score_min]
+
+            # Preview do segmento
+            dce_seg = df_filtrado[df_filtrado["email"].notna() & (df_filtrado["email"] != "")] if not df_filtrado.empty else pd.DataFrame()
+
+            st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+            c_s1, c_s2, c_s3 = st.columns(3)
+            with c_s1: kpi_html("No segmento", len(df_filtrado) if not df_filtrado.empty else 0, "", "navy")
+            with c_s2: kpi_html("Com email", len(dce_seg), "podem receber", "green")
+            with c_s3:
+                margem_media = df_filtrado["margem"].mean() if not df_filtrado.empty else 0
+                kpi_html("Margem média", fmt(margem_media), "do segmento", "green" if margem_media > 300 else "yellow")
+
+            st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+
+            # Preview da lista
+            if not df_filtrado.empty:
+                with st.expander(f"+ Ver {len(df_filtrado)} cliente(s) do segmento"):
+                    for _, r in df_filtrado.head(20).iterrows():
+                        tem_email = "✉️" if r.get("email") else "—"
+                        st.markdown(
+                            f'<div style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);'
+                            f'font-size:12px;color:rgba(255,255,255,0.7);display:flex;justify-content:space-between">'
+                            f'<span>{r["nome"]}</span>'
+                            f'<span style="color:rgba(255,255,255,0.35)">{r.get("tipo_beneficio","")[:30]} {tem_email}</span></div>',
+                            unsafe_allow_html=True
+                        )
+
+            # Formulário de envio segmentado
+            if not dce_seg.empty:
+                st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+                with st.form("form_seg_email"):
+                    assunto_seg = st.text_input("Assunto do email", placeholder="Ex: Oportunidade especial para aposentados por idade")
+                    titulo_seg  = st.text_input("Título da mensagem", placeholder="Ex: Seu benefício pode render mais!")
+                    corpo_seg   = st.text_area("Corpo da mensagem", height=100,
+                        placeholder="Ex: Olá! Como beneficiário de aposentadoria por idade, você tem direito a condições especiais...")
+
+                    if st.form_submit_button(f"🎯 Enviar para {len(dce_seg)} cliente(s) do segmento", use_container_width=True):
+                        if not assunto_seg or not corpo_seg:
+                            st.error("Preencha assunto e corpo da mensagem.")
+                        else:
+                            env_seg = 0
+                            for _, r in dce_seg.iterrows():
+                                html_seg = (
+                                    f'<div style="font-family:Inter,sans-serif;max-width:560px;margin:0 auto">'
+                                    f'<div style="background:#1B3A6B;padding:24px;border-radius:12px 12px 0 0">'
+                                    f'<h2 style="color:white;margin:0">⚛ Núcleo Crédito</h2></div>'
+                                    f'<div style="background:white;padding:28px;border-radius:0 0 12px 12px">'
+                                    f'<p>Olá, <b>{r["nome"].split()[0]}</b>!</p>'
+                                    f'<h3 style="color:#1B3A6B">{titulo_seg}</h3>'
+                                    f'<p style="color:#475569;line-height:1.6">{corpo_seg}</p>'
+                                    f'<div style="background:#F0FDF4;border-radius:10px;padding:12px 16px;margin:16px 0;font-size:12px;color:#166534">'
+                                    f'Benefício: <b>{r.get("tipo_beneficio","")}</b> · '
+                                    f'Margem disponível: <b>{fmt(r.get("margem",0))}</b></div>'
+                                    f'<a href="https://wa.me/5511952723015" style="background:#1A7A5E;color:white;'
+                                    f'padding:12px 28px;border-radius:99px;text-decoration:none;font-weight:600">'
+                                    f'💬 Falar no WhatsApp</a></div></div>'
+                                )
+                                ok_s, _ = send_email_safe(r["email"], r["nome"], assunto_seg, html_seg)
+                                if ok_s: env_seg += 1
+                            st.success(f"✅ {env_seg} email(s) enviado(s) para o segmento!")
+            else:
+                st.warning("Nenhum cliente neste segmento possui email cadastrado.")
+
 elif "Metas" in menu:
     page_header("🎯", "Painel de Metas", "Acompanhe seu progresso mensal")
 
