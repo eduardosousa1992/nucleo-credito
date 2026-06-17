@@ -118,6 +118,36 @@ section[data-testid="stSidebar"] {{
         pointer-events: none !important;
     }}
 }}
+/* Mobile: estiliza botão nativo e esconde texto feio */
+@media (max-width: 768px) {{
+    [data-testid="collapsedControl"] {{
+        background: #1A7A5E !important;
+        border-radius: 10px !important;
+        width: 44px !important;
+        height: 44px !important;
+        overflow: hidden !important;
+        font-size: 0 !important;
+        color: transparent !important;
+    }}
+    [data-testid="collapsedControl"] * {{
+        font-size: 0 !important;
+        color: transparent !important;
+    }}
+    [data-testid="collapsedControl"] svg {{
+        width: 22px !important;
+        height: 22px !important;
+        fill: white !important;
+        color: white !important;
+        font-size: 22px !important;
+    }}
+    [data-testid="stSidebarCollapseButton"] button {{
+        background: rgba(255,255,255,0.1) !important;
+        border-radius: 8px !important;
+    }}
+    [data-testid="stSidebarCollapseButton"] svg {{
+        fill: white !important;
+    }}
+}}
 
 
 /* ── FILE UPLOADER PREMIUM ── */
