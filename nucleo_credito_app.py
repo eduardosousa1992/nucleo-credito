@@ -408,12 +408,20 @@ def dec(t):
     except: return t
 
 def mask_cpf(c):
+    """Máscara LGPD para exibição no sistema: ***.XXX.XXX-** """
     d = "".join(filter(str.isdigit, c or ""))
-    return f"***.{d[3:6]}.{d[6:9]}-**" if len(d) == 11 else "***.***.***-**"
+    if len(d) == 11:
+        return f"***.{d[3:6]}.{d[6:9]}-**"
+    return "***.***.***-**"
 
 def mask_tel(t):
+    """Máscara LGPD para exibição no sistema"""
     d = "".join(filter(str.isdigit, t or ""))
-    return f"({d[:2]}) *****-{d[-4:]}" if len(d) >= 8 else "(**)*****-****"
+    if len(d) == 11:
+        return f"({d[:2]}) *****-{d[-4:]}"
+    elif len(d) == 10:
+        return f"({d[:2]}) ****-{d[-4:]}"
+    return "(**)*****-****"
 
 # ── INSS 2026 ────────────────────────────────────────────────────────────────
 INSS = {
@@ -449,7 +457,14 @@ def prox_pg(cpf_raw):
 # ── SCORE ─────────────────────────────────────────────────────────────────────
 def calc_score(row):
     s = 0
-    m = row.get("margem", 0)
+    tipo_ben = row.get("tipo_beneficio","") or ""
+    eh_bpc = "BPC" in tipo_ben or "LOAS" in tipo_ben
+    # BPC margem 35%, demais 40%
+    pct_margem = 0.35 if eh_bpc else 0.40
+    beneficio = float(row.get("beneficio", 0) or 0)
+    parcelas  = float(row.get("parcelas", 0) or 0)
+    m = round(beneficio * pct_margem - parcelas, 2)
+    row["margem"] = m  # atualiza para uso posterior
     if m > 600: s += 40
     elif m > 300: s += 30
     elif m > 100: s += 15
@@ -472,8 +487,17 @@ def load_clientes():
         df["tel_raw"] = df["telefone"].apply(lambda x: dec(x) if x else "")
         df["cpf_d"]   = df["cpf_raw"].apply(mask_cpf)
         df["tel_d"]   = df["tel_raw"].apply(mask_tel)
-        df["margem"]  = df.apply(lambda r: round(r["beneficio"]*0.4 - r["parcelas"], 2), axis=1)
-        df["pct"]     = df.apply(lambda r: min(100, round(r["parcelas"]/(r["beneficio"]*0.4)*100, 1)) if r["beneficio"] > 0 else 0, axis=1)
+        def calc_margem(r):
+            eh_bpc = "BPC" in str(r.get("tipo_beneficio","")) or "LOAS" in str(r.get("tipo_beneficio",""))
+            pct = 0.35 if eh_bpc else 0.40
+            return round(float(r["beneficio"])*pct - float(r["parcelas"]), 2)
+        df["margem"]  = df.apply(calc_margem, axis=1)
+        def calc_pct(r):
+            if r["beneficio"] <= 0: return 0
+            eh_bpc = "BPC" in str(r.get("tipo_beneficio","")) or "LOAS" in str(r.get("tipo_beneficio",""))
+            pct = 0.35 if eh_bpc else 0.40
+            return min(100, round(float(r["parcelas"])/(float(r["beneficio"])*pct)*100, 1))
+        df["pct"] = df.apply(calc_pct, axis=1)
         df["score"]   = df.apply(calc_score, axis=1)
         df["prox"], df["dias"] = zip(*df.apply(lambda r: prox_pg(r["cpf_raw"]), axis=1))
         return df
@@ -743,7 +767,36 @@ def is_admin():
 
 # ── HELPERS UI ────────────────────────────────────────────────────────────────
 def fmt(v):
-    return f"R$ {abs(v):,.2f}".replace(",","X").replace(".",",").replace("X",".")
+    """Formata valor monetário: 5230.0 → R$ 5.230,00"""
+    try:
+        return f"R$ {abs(float(v)):,.2f}".replace(",","X").replace(".",",").replace("X",".")
+    except:
+        return "R$ 0,00"
+
+def validar_cpf(cpf):
+    """Valida CPF e retorna True se válido"""
+    d = "".join(filter(str.isdigit, cpf or ""))
+    if len(d) != 11 or d == d[0]*11: return False
+    for i in range(9,11):
+        s = sum(int(d[j])*(i+1-j) for j in range(i))
+        if int(d[i]) != (s*10%11)%10: return False
+    return True
+
+def mask_cpf_input(cpf):
+    """Máscara de exibição: 523.1**.***-12 (oculta 6 dígitos do meio)"""
+    d = "".join(filter(str.isdigit, cpf or ""))
+    if len(d) == 11:
+        return f"{d[0:3]}.***.{d[6:9]}-{d[9:11]}"
+    return cpf
+
+def mask_tel_input(tel):
+    """Máscara de exibição: (86) *****-7312 (oculta 5 dígitos)"""
+    d = "".join(filter(str.isdigit, tel or ""))
+    if len(d) == 11:
+        return f"({d[0:2]}) *****-{d[7:11]}"
+    elif len(d) == 10:
+        return f"({d[0:2]}) ****-{d[6:10]}"
+    return tel
 
 def kpi_html(label, value, sub="", color="green"):
     border = {"navy": "#1B3A6B", "red": "#C0392B", "yellow": "#E67E22"}.get(color, "#1A7A5E")
@@ -1101,6 +1154,16 @@ elif "Clientes" in menu:
                 canal  = st.selectbox("Canal", ["Panfletagem","Rádio","WhatsApp","Indicação","Instagram","Google","Presencial"])
                 status = st.selectbox("Status", ["Lead Quente","Em análise","Ativo"])
                 int_   = st.selectbox("Interesse", ["Consignado INSS","Portabilidade","Refinanciamento","Cartão Consignado","Consignado Servidor","Desenrola Brasil"])
+                # Info de consignabilidade automática
+                _eh_bpc = "BPC" in tipo_ben or "LOAS" in tipo_ben
+                _eh_temp = any(x in tipo_ben for x in ["Temporária","Maternidade","Família","Inclusão"])
+                if _eh_bpc:
+                    st.warning("⚠️ BPC/LOAS: cartão consignado permitido. Empréstimo tradicional com restrições. Margem: 35%.")
+                elif _eh_temp:
+                    st.info("ℹ️ Benefício temporário: consignado tradicional não recomendado. Verifique elegibilidade.")
+                else:
+                    st.success("✅ Benefício consignável — margem 40%.")
+
                 bloq   = st.checkbox("Benefício bloqueado para consignado?", help="Após averbação, INSS bloqueia para novas operações")
             obs = st.text_area("Observações", height=60)
 
@@ -1108,11 +1171,17 @@ elif "Clientes" in menu:
                 if not nome or not ben:
                     st.error("Nome e Benefício são obrigatórios.")
                 else:
-                    obs_final = obs
-                    if bloq: obs_final = f"[BENEFÍCIO BLOQUEADO - aguarda desbloqueio no Meu INSS] {obs}"
-                    ins_cli({"nome":nome,"cpf":cpf,"telefone":tel,"email":email,
-                        "data_nasc":str(dn),"beneficio":float(ben),"parcelas":float(par),
-                        "canal":canal,"status":status,"interesse":int_,"observacoes":obs_final})
+                    if cpf_raw and not cpf_valido:
+                        st.error("Corrija o CPF antes de salvar.")
+                    else:
+                        obs_final = obs
+                        if bloq: obs_final = f"[BENEFÍCIO BLOQUEADO] {obs}"
+                        ins_cli({"nome":nome,"nome_social":nome_soc,"cpf":cpf_raw,
+                            "telefone":tel_raw,"email":email,"data_nasc":str(dn),
+                            "beneficio":float(ben),"parcelas":float(par),"canal":canal,
+                            "status":status,"interesse":int_,"tipo_beneficio":tipo_ben,
+                            "data_concessao":str(data_conc),"representante_legal":rep_legal,
+                            "observacoes":obs_final})
                     st.success(f"✅ {nome} cadastrado!")
                     st.rerun()
 
@@ -1165,14 +1234,18 @@ elif "Clientes" in menu:
                 pct_c = row["pct"]
                 bar_c = "#4ADE80" if pct_c<60 else "#FBBF24" if pct_c<90 else "#EF4444"
 
+                nome_exib = row.get('nome_social','') or row['nome']
+                nome_comp = row['nome'] if row.get('nome_social') else ''
                 st.markdown(f"""
                 <div style="background:#0D1B35;border:1px solid rgba(74,222,128,0.2);border-radius:14px;
                     padding:18px 20px;margin:8px 0;border-left:4px solid {'#4ADE80' if m>300 else '#EF4444' if m<=0 else '#FBBF24'}">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
                         <div>
-                            <div style="font-size:18px;font-weight:800;color:white">{row['nome']}</div>
+                            <div style="font-size:18px;font-weight:800;color:white">{nome_exib}</div>
+                            {"<div style='font-size:11px;color:rgba(255,255,255,0.3);margin-top:1px'>"+nome_comp+"</div>" if nome_comp else ""}
                             <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:3px">
                                 {row['tel_d']} · {row.get('canal','')} · {row.get('interesse','')}
+                                {" · "+row.get('tipo_beneficio','') if row.get('tipo_beneficio') else ""}
                             </div>
                             <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
                                 {badge(row['status'],'blue')}
@@ -1317,11 +1390,15 @@ elif "Clientes" in menu:
                             ec1, ec2, ec3 = st.columns(3)
                             with ec1:
                                 e_nome   = st.text_input("Nome completo", value=row["nome"])
-                                e_social = st.text_input("Nome social (opcional)", value=row.get("nome_social","") or "")
-                                e_cpf    = st.text_input("CPF", value=row["cpf_raw"] or "", help="Será criptografado")
-                                e_tel    = st.text_input("Telefone", value=row["tel_raw"] or "", help="Será criptografado")
-                            with ec2:
+                                e_social = st.text_input("Nome social", value=row.get("nome_social","") or "", help="Como prefere ser chamado/a")
+                                e_cpf    = st.text_input("CPF", value=row["cpf_raw"] or "", placeholder="000.000.000-00")
+                                e_tel    = st.text_input("Telefone", value=row["tel_raw"] or "", placeholder="(00) 00000-0000")
                                 e_email  = st.text_input("Email", value=row.get("email","") or "")
+                            with ec2:
+                                _tipos = ['Aposentadoria por Idade (Urbana)', 'Aposentadoria por Idade da Pessoa com Deficiência', 'Aposentadoria por Idade Rural', 'Aposentadoria por Incapacidade Permanente (Urbana)', 'Aposentadoria por Incapacidade Permanente (Rural)', 'Aposentadoria por Incapacidade Permanente (Acidentária)', 'Aposentadoria por Tempo de Contribuição', 'Aposentadoria por Tempo de Contribuição da Pessoa com Deficiência', 'Aposentadoria por Tempo de Contribuição — Regra de Transição', 'Aposentadoria Especial', 'Aposentadoria Especial — Professor', 'Aposentadoria Especial — Aeronauta', 'Aposentadoria Rural — Segurado Especial', 'Aposentadoria Híbrida', 'Pensão por Morte (Urbana)', 'Pensão por Morte (Rural)', 'Pensão por Morte (Acidentária)', 'Pensão Especial — Síndrome da Talidomida', 'Pensão Especial — Síndrome Congênita do Zika Vírus', 'Auxílio por Incapacidade Temporária — Urbano (antigo Aux. Doença)', 'Auxílio por Incapacidade Temporária — Acidentário', 'Auxílio-Acidente (consignável)', 'Auxílio-Reclusão — Urbano (consignável)', 'Auxílio-Reclusão — Rural (consignável)', 'Auxílio-Inclusão', 'Salário-Maternidade — Urbano', 'Salário-Maternidade — Rural', 'Salário-Família', 'BPC/LOAS — Idoso (cartão consignado; empréstimo com restrições)', 'BPC/LOAS — Pessoa com Deficiência (cartão consignado; empréstimo com restrições)', 'Servidor Público Federal — RPPS', 'Servidor Público Estadual — RPPS', 'Servidor Público Municipal — RPPS', 'Militar das Forças Armadas', 'Policial Militar Estadual', 'Renda Mensal Vitalícia', 'Outro']
+                                _tipo_atual = row.get("tipo_beneficio","Aposentadoria por Idade")
+                                e_tipo   = st.selectbox("Tipo de Benefício", _tipos,
+                                    index=_tipos.index(_tipo_atual) if _tipo_atual in _tipos else 0)
                                 e_ben    = st.number_input("Benefício (R$)", value=float(row["beneficio"]), min_value=0.0, step=50.0)
                                 e_par    = st.number_input("Parcelas ativas (R$)", value=float(row["parcelas"]), min_value=0.0, step=50.0)
                                 e_status = st.selectbox("Status", ["Lead Quente","Em análise","Ativo","Inativo"],
@@ -1331,15 +1408,21 @@ elif "Clientes" in menu:
                                     index=["Panfletagem","Rádio","WhatsApp","Indicação","Instagram","Google","Presencial"].index(row["canal"]) if row["canal"] in ["Panfletagem","Rádio","WhatsApp","Indicação","Instagram","Google","Presencial"] else 0)
                                 e_int    = st.selectbox("Interesse", ["Consignado INSS","Portabilidade","Refinanciamento","Cartão Consignado","Consignado Servidor","Empréstimo Pessoal"],
                                     index=["Consignado INSS","Portabilidade","Refinanciamento","Cartão Consignado","Consignado Servidor","Empréstimo Pessoal"].index(row["interesse"]) if row.get("interesse") in ["Consignado INSS","Portabilidade","Refinanciamento","Cartão Consignado","Consignado Servidor","Empréstimo Pessoal"] else 0)
-                                e_obs    = st.text_area("Observações", value=row.get("observacoes","") or "", height=80)
+                                e_obs    = st.text_area("Observações", value=row.get("observacoes","") or "", height=100)
+
+                            # Validação CPF na edição
+                            e_cpf_ok = validar_cpf(e_cpf) if e_cpf else True
+                            if e_cpf and not e_cpf_ok:
+                                st.warning("CPF parece inválido — verifique antes de salvar")
 
                             if st.form_submit_button("💾 Salvar Alterações", use_container_width=True):
                                 upd_cli(row["id"], {
-                                    "nome": e_nome, "email": e_email,
-                                    "cpf": e_cpf, "telefone": e_tel,
+                                    "nome": e_nome, "nome_social": e_social,
+                                    "email": e_email, "cpf": e_cpf, "telefone": e_tel,
                                     "beneficio": float(e_ben), "parcelas": float(e_par),
                                     "canal": e_canal, "status": e_status,
-                                    "interesse": e_int, "observacoes": e_obs
+                                    "interesse": e_int, "tipo_beneficio": e_tipo,
+                                    "observacoes": e_obs
                                 })
                                 st.success("✅ Dados atualizados!")
                                 st.session_state[f"edit_cli_{row['id']}"] = False
@@ -1466,7 +1549,9 @@ elif "Simulador" in menu:
             st.markdown("#### Dados do Cliente")
             ben2 = st.number_input("Benefício (R$)", min_value=0.0, value=1412.0, step=50.0)
             pa2  = st.number_input("Parcelas Ativas (R$)", min_value=0.0, value=0.0, step=50.0)
-            mc = ben2*0.4; md = max(0, mc-pa2)
+            eh_bpc_sim = "BPC" in st.session_state.get("sim_tipo_ben","") or "LOAS" in st.session_state.get("sim_tipo_ben","")
+            pct_sim = 0.35 if eh_bpc_sim else 0.40
+            mc = ben2*pct_sim; md = max(0, mc-pa2)
             pct2 = min(100, round(pa2/mc*100, 1)) if mc > 0 else 0
             cor_md = GREEN if md > 300 else YELLOW if md > 0 else RED
 
