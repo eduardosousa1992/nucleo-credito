@@ -66,20 +66,7 @@ section[data-testid="stSidebar"] {{
 }}
 /* Mobile: sidebar colapsável */
 @media (max-width: 768px) {{
-    section[data-testid="stSidebar"] {{
-        min-width: unset !important;
-        max-width: 80vw !important;
-        width: 80vw !important;
-        position: fixed !important;
-        z-index: 999 !important;
-        height: 100vh !important;
-        top: 0 !important;
-        left: 0 !important;
-        transform: translateX(-100%) !important;
-    }}
-    section[data-testid="stSidebar"][aria-expanded="true"] {{
-        transform: translateX(0px) !important;
-    }}
+
     [data-testid="stSidebarCollapseButton"] {{
         display: flex !important;
         visibility: visible !important;
@@ -131,38 +118,7 @@ section[data-testid="stSidebar"] {{
         pointer-events: none !important;
     }}
 }}
-/* Mobile: botão de abrir sidebar visível e estilizado */
-@media (max-width: 768px) {{
-    [data-testid="collapsedControl"] {{
-        display: flex !important;
-        visibility: visible !important;
-        pointer-events: all !important;
-        opacity: 1 !important;
-        background: #1A7A5E !important;
-        border-radius: 10px !important;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.5) !important;
-        position: fixed !important;
-        top: 14px !important;
-        left: 14px !important;
-        z-index: 99999 !important;
-        width: 44px !important;
-        height: 44px !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }}
-    [data-testid="collapsedControl"] svg {{
-        fill: white !important;
-        stroke: white !important;
-        width: 22px !important;
-        height: 22px !important;
-    }}
-    [data-testid="stSidebarCollapseButton"] {{
-        display: flex !important;
-        visibility: visible !important;
-        pointer-events: all !important;
-        opacity: 1 !important;
-    }}
-}}
+
 
 /* ── FILE UPLOADER PREMIUM ── */
 [data-testid="stFileUploader"] > label {{
