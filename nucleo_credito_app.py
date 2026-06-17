@@ -120,8 +120,7 @@ section[data-testid="stSidebar"] {{
     width: 240px !important;
 }}
 
-/* Oculta botão colapsar sidebar */
-/* Desktop: esconde botão de colapso */
+/* Desktop: esconde botão de colapso da sidebar */
 @media (min-width: 769px) {{
     [data-testid="collapsedControl"],
     [data-testid="stSidebarCollapseButton"],
@@ -130,6 +129,38 @@ section[data-testid="stSidebar"] {{
         display: none !important;
         visibility: hidden !important;
         pointer-events: none !important;
+    }}
+}}
+/* Mobile: botão de abrir sidebar visível e estilizado */
+@media (max-width: 768px) {{
+    [data-testid="collapsedControl"] {{
+        display: flex !important;
+        visibility: visible !important;
+        pointer-events: all !important;
+        opacity: 1 !important;
+        background: #1A7A5E !important;
+        border-radius: 10px !important;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.5) !important;
+        position: fixed !important;
+        top: 14px !important;
+        left: 14px !important;
+        z-index: 99999 !important;
+        width: 44px !important;
+        height: 44px !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }}
+    [data-testid="collapsedControl"] svg {{
+        fill: white !important;
+        stroke: white !important;
+        width: 22px !important;
+        height: 22px !important;
+    }}
+    [data-testid="stSidebarCollapseButton"] {{
+        display: flex !important;
+        visibility: visible !important;
+        pointer-events: all !important;
+        opacity: 1 !important;
     }}
 }}
 
