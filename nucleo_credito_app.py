@@ -1180,35 +1180,6 @@ from datetime import timezone, timedelta
 br_tz = timezone(timedelta(hours=-3))
 today_str = datetime.now(br_tz).strftime('%d/%m/%Y')
 
-# Botão hamburger fixo para mobile
-st.markdown("""<style>
-@media (max-width: 768px) {
-    .mob-menu {
-        display: flex !important; position: fixed !important;
-        top: 12px !important; left: 12px !important; z-index: 99999 !important;
-        background: #1A7A5E !important; border: none !important;
-        border-radius: 10px !important; width: 42px !important; height: 42px !important;
-        align-items: center !important; justify-content: center !important;
-        cursor: pointer !important; box-shadow: 0 4px 16px rgba(0,0,0,0.5) !important;
-        font-size: 18px !important; color: white !important; text-decoration: none !important;
-    }
-}
-@media (min-width: 769px) { .mob-menu { display: none !important; } }
-</style>
-<a class="mob-menu" onclick="
-    try {
-        var btn = window.parent.document.querySelector('[data-testid=stSidebarCollapseButton]');
-        if(btn) btn.click();
-        else {
-            var sb = window.parent.document.querySelector('[data-testid=stSidebar]');
-            var exp = sb.getAttribute('aria-expanded');
-            sb.setAttribute('aria-expanded', exp==='true'?'false':'true');
-            sb.style.transform = exp==='true'?'translateX(-100%)':'translateX(0)';
-        }
-    } catch(e){}
-    return false;
-" href="#">☰</a>""", unsafe_allow_html=True)
-
 st.markdown(f"""
 <div class="brand-topbar">
     <div class="brand-topbar-left">
