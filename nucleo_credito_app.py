@@ -556,17 +556,39 @@ def send_email_safe(to_email, to_name, subject, html):
     return ok, err
 
 # ── AUTH ──────────────────────────────────────────────────────────────────────
-USERS = {
-    "eduardo": {
-        "pwd": hashlib.sha256(b"nucleo2026").hexdigest(),
-        "name": "Eduardo Lima de Sousa"
+# ── SISTEMA DE USUÁRIOS ──────────────────────────────────────────────────────
+def load_users():
+    """Carrega usuários do Supabase. Admin fixo sempre presente."""
+    users = {
+        "eduardo": {
+            "pwd": hashlib.sha256(b"nucleo2026").hexdigest(),
+            "name": "Eduardo Lima de Sousa",
+            "role": "admin"
+        }
     }
-}
+    if sb:
+        try:
+            r = sb.table("usuarios").select("*").eq("ativo", True).execute()
+            for u in (r.data or []):
+                users[u["login"].lower()] = {
+                    "pwd": u["senha_hash"],
+                    "name": u["nome"],
+                    "role": u["perfil"]
+                }
+        except: pass
+    return users
 
 def check_pwd(u, p):
-    usr = USERS.get(u.lower())
+    users = load_users()
+    usr = users.get(u.lower())
     if not usr: return False
     return hmac.compare_digest(usr["pwd"], hashlib.sha256(p.encode()).hexdigest())
+
+def get_role():
+    return st.session_state.get("role", "operador")
+
+def is_admin():
+    return get_role() == "admin"
 
 # ── HELPERS UI ────────────────────────────────────────────────────────────────
 def fmt(v):
@@ -656,9 +678,11 @@ if not st.session_state.logged_in:
 
     if submitted:
         if check_pwd(username, password):
+            users = load_users()
             st.session_state.logged_in = True
             st.session_state.username  = username
-            st.session_state.uname     = USERS[username.lower()]["name"]
+            st.session_state.uname     = users[username.lower()]["name"]
+            st.session_state.role      = users[username.lower()]["role"]
             st.rerun()
         else:
             st.error("Usuário ou senha incorretos.")
@@ -685,9 +709,10 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    menu = st.radio(
-        "Navegação",
-        options=[
+    # Menu filtrado por perfil
+    _role = st.session_state.get("role", "operador")
+    if _role == "admin":
+        _opcoes = [
             "📊  Dashboard",
             "👥  Clientes",
             "📋  Leads",
@@ -697,7 +722,19 @@ with st.sidebar:
             "📅  Agenda",
             "📧  Email Marketing",
             "🎯  Metas",
-        ],
+            "⚙️  Administração",
+        ]
+    else:
+        _opcoes = [
+            "👥  Clientes",
+            "📋  Leads",
+            "🧮  Simulador",
+            "📅  Agenda",
+        ]
+
+    menu = st.radio(
+        "Navegação",
+        options=_opcoes,
         label_visibility="collapsed"
     )
 
@@ -1532,3 +1569,138 @@ elif "Metas" in menu:
             <span style="font-size:13px;color:{NAVY};font-weight:600">📈 Ritmo necessário: </span>
             <span style="font-size:13px;color:#3B82F6">{ritmo:.1f} contrato(s)/dia nos próximos {dias_uteis} dias úteis</span>
         </div>""", unsafe_allow_html=True)
+
+# ═══ ADMINISTRAÇÃO ═══
+elif "Administração" in menu:
+    if not is_admin():
+        st.error("Acesso restrito ao administrador.")
+        st.stop()
+
+    page_header("⚙️", "Painel de Administração", "Gestão de usuários e acessos do sistema")
+
+    # ── KPIs
+    if sb:
+        try:
+            r_us = sb.table("usuarios").select("*").execute()
+            total_us = len(r_us.data or [])
+            ativos_us = len([u for u in (r_us.data or []) if u.get("ativo")])
+        except:
+            total_us = ativos_us = 0
+    else:
+        total_us = ativos_us = 0
+
+    c1, c2, c3 = st.columns(3)
+    with c1: kpi_html("Usuários Cadastrados", total_us + 1, "inclui admin", "navy")
+    with c2: kpi_html("Usuários Ativos", ativos_us + 1, "", "green")
+    with c3: kpi_html("Seu Perfil", "Admin", "acesso total", "green")
+
+    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+
+    # ── Cadastrar novo usuário
+    if st.button("＋ Novo Usuário", key="btn_new_user"):
+        st.session_state["show_form_user"] = not st.session_state.get("show_form_user", False)
+
+    if st.session_state.get("show_form_user", False):
+        with st.form("form_usuario", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            with c1:
+                nu_nome  = st.text_input("Nome completo")
+                nu_login = st.text_input("Login (sem espaços)")
+                nu_senha = st.text_input("Senha inicial", type="password")
+            with c2:
+                nu_perfil = st.selectbox("Perfil de acesso", ["operador", "admin"])
+                nu_email  = st.text_input("Email (opcional)")
+                nu_obs    = st.text_input("Observação (ex: função)")
+
+            st.markdown(f"""
+            <div style="background:rgba(74,222,128,0.08);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:12px;color:rgba(255,255,255,0.6)">
+                <b style="color:#4ADE80">Perfil Operador:</b> acessa Clientes, Leads, Simulador e Agenda<br>
+                <b style="color:#4ADE80">Perfil Admin:</b> acesso total + gerenciar usuários
+            </div>""", unsafe_allow_html=True)
+
+            if st.form_submit_button("✅ Cadastrar Usuário", use_container_width=True):
+                if not nu_nome or not nu_login or not nu_senha:
+                    st.error("Nome, login e senha são obrigatórios.")
+                elif nu_login.lower() == "eduardo":
+                    st.error("Login reservado.")
+                else:
+                    try:
+                        sb.table("usuarios").insert({
+                            "nome": nu_nome,
+                            "login": nu_login.lower().strip(),
+                            "senha_hash": hashlib.sha256(nu_senha.encode()).hexdigest(),
+                            "perfil": nu_perfil,
+                            "email": nu_email,
+                            "observacao": nu_obs,
+                            "ativo": True
+                        }).execute()
+                        st.success(f"✅ Usuário {nu_nome} cadastrado com perfil {nu_perfil}!")
+                        st.session_state["show_form_user"] = False
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro: {e}")
+
+    # ── Lista de usuários
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    st.markdown('<div class="chart-card"><div class="chart-title">👥 Usuários Cadastrados</div>', unsafe_allow_html=True)
+
+    # Admin fixo
+    st.markdown("""
+    <div style="display:flex;justify-content:space-between;align-items:center;
+        padding:10px 14px;background:rgba(74,222,128,0.08);border-radius:9px;margin-bottom:6px;
+        border-left:3px solid #1A7A5E">
+        <div>
+            <span style="color:white;font-weight:700;font-size:13px">Eduardo Lima de Sousa</span>
+            <span style="color:rgba(255,255,255,0.4);font-size:11px;margin-left:10px">@eduardo</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+            <span style="background:rgba(74,222,128,0.15);color:#4ADE80;padding:2px 10px;
+                border-radius:99px;font-size:10px;font-weight:700">ADMIN</span>
+            <span style="background:rgba(74,222,128,0.15);color:#4ADE80;padding:2px 10px;
+                border-radius:99px;font-size:10px;font-weight:700">● Ativo</span>
+        </div>
+    </div>""", unsafe_allow_html=True)
+
+    if sb:
+        try:
+            r_lista = sb.table("usuarios").select("*").order("created_at", desc=True).execute()
+            for u in (r_lista.data or []):
+                ativo = u.get("ativo", True)
+                cor_status = "#4ADE80" if ativo else "#EF4444"
+                label_status = "● Ativo" if ativo else "○ Inativo"
+                cor_perfil = "#60A5FA" if u["perfil"] == "admin" else "rgba(255,255,255,0.5)"
+
+                ca, cb = st.columns([3, 1])
+                with ca:
+                    st.markdown(f"""
+                    <div style="display:flex;justify-content:space-between;align-items:center;
+                        padding:10px 14px;background:rgba(255,255,255,0.04);border-radius:9px;
+                        border-left:3px solid {'#1A7A5E' if ativo else '#374151'}">
+                        <div>
+                            <span style="color:white;font-weight:600;font-size:13px">{u['nome']}</span>
+                            <span style="color:rgba(255,255,255,0.4);font-size:11px;margin-left:10px">@{u['login']}</span>
+                            {f'<span style="color:rgba(255,255,255,0.3);font-size:10px;margin-left:8px">{u.get("observacao","")}</span>' if u.get("observacao") else ""}
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <span style="background:rgba(96,165,250,0.12);color:{cor_perfil};padding:2px 10px;
+                                border-radius:99px;font-size:10px;font-weight:700">{u['perfil'].upper()}</span>
+                            <span style="color:{cor_status};font-size:11px;font-weight:600">{label_status}</span>
+                        </div>
+                    </div>""", unsafe_allow_html=True)
+
+                with cb:
+                    col_a, col_b = st.columns(2)
+                    with col_a:
+                        label_btn = "Desativar" if ativo else "Ativar"
+                        if st.button(label_btn, key=f"tog_{u['id']}"):
+                            sb.table("usuarios").update({"ativo": not ativo}).eq("id", u["id"]).execute()
+                            st.rerun()
+                    with col_b:
+                        if st.button("Excluir", key=f"del_u_{u['id']}"):
+                            sb.table("usuarios").delete().eq("id", u["id"]).execute()
+                            st.success(f"Usuário removido.")
+                            st.rerun()
+        except Exception as e:
+            st.error(f"Erro ao carregar usuários: {e}")
+
+    st.markdown('</div>', unsafe_allow_html=True)
