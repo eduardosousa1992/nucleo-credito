@@ -527,7 +527,7 @@ def upd_cli(id, d):
     sb.table("clientes").update(d).eq("id", id).execute()
 
 def converter_lead_para_cliente(lead_row):
-    """Migra dados do lead para a tabela clientes"""
+    """Migra dados do lead para a tabela clientes e arquiva o lead"""
     d = {
         "nome":      lead_row.get("nome", ""),
         "telefone":  lead_row.get("telefone", ""),
@@ -540,8 +540,13 @@ def converter_lead_para_cliente(lead_row):
         "observacoes": f"Convertido do funil em {date.today().strftime('%d/%m/%Y')}. {lead_row.get('observacoes','')}"
     }
     ins_cli(d)
-    # Marca lead como convertido
-    sb.table("leads").update({"etapa":"Contrato Pago","status":"Convertido"}).eq("id", int(lead_row["id"])).execute()
+    # Arquiva o lead: marca como Convertido e move para etapa final
+    # Lead fica arquivado — não some do histórico, mas sai do funil ativo
+    sb.table("leads").update({
+        "etapa": "Contrato Pago",
+        "status": "Convertido",
+        "temperatura": "Convertido"
+    }).eq("id", int(lead_row["id"])).execute()
 
 def ins_lead(d):   sb.table("leads").insert(d).execute()
 def ins_hist(d):   sb.table("historico").insert(d).execute()
@@ -606,6 +611,62 @@ def gerar_alertas_automaticos(df_cli, df_leads):
                         "prioridade": "urgente"
                     })
             except: pass
+
+    # Regra 3: Clientes com contratos quitando em 90 dias
+    try:
+        if sb:
+            r_cts = sb.table("contratos").select("*, clientes(nome,id)").execute()
+            for ct in (r_cts.data or []):
+                try:
+                    inicio = datetime.strptime(str(ct.get("data_inicio",""))[:10], "%Y-%m-%d")
+                    total_meses = int(ct.get("parcelas_total", 0))
+                    if total_meses > 0:
+                        quitacao = inicio + timedelta(days=total_meses*30)
+                        dias_quit = (quitacao - agora).days
+                        nome_cli = ct.get("clientes",{}).get("nome","") if isinstance(ct.get("clientes"),dict) else ""
+                        if 0 <= dias_quit <= 90 and nome_cli:
+                            alertas.append({
+                                "tipo": "contrato_quitando",
+                                "titulo": f"Contrato quitando: {nome_cli.split()[0]}",
+                                "descricao": f"Contrato {ct.get('banco','')} quita em {dias_quit} dias — Margem será liberada!",
+                                "entidade": "contrato",
+                                "entidade_id": int(ct.get("id",0)),
+                                "prioridade": "alta" if dias_quit <= 30 else "media"
+                            })
+                except: pass
+    except: pass
+
+    # Regra 4: Reajuste INSS — alertas nos momentos certos
+    # Dezembro: preparar lista de clientes para abordagem em janeiro
+    if agora.month == 12 and agora.day >= 15:
+        alertas.append({
+            "tipo": "reajuste_inss",
+            "titulo": "Reajuste INSS em janeiro — prepare sua lista",
+            "descricao": "Em janeiro o INSS paga com novo valor reajustado. A margem aumenta imediatamente. Contate seus clientes ANTES da concorrência — prepare abordagem agora.",
+            "entidade": "sistema",
+            "entidade_id": 0,
+            "prioridade": "urgente"
+        })
+    # Janeiro: margem já atualizada — janela de oportunidade aberta
+    if agora.month == 1:
+        alertas.append({
+            "tipo": "reajuste_inss",
+            "titulo": "🚀 Reajuste INSS ativo — margem aumentou agora",
+            "descricao": "Todos os benefícios foram reajustados. A margem consignável aumentou. Contate TODOS os clientes ativos hoje — janela de oportunidade máxima antes da concorrência.",
+            "entidade": "sistema",
+            "entidade_id": 0,
+            "prioridade": "urgente"
+        })
+    # Fevereiro: segunda onda — quem não converteu em janeiro
+    if agora.month == 2:
+        alertas.append({
+            "tipo": "reajuste_inss",
+            "titulo": "⏰ Segunda onda reajuste — clientes não contatados",
+            "descricao": "Ainda há clientes com margem aumentada que não foram abordados. Filtre por Score alto e contate antes de março.",
+            "entidade": "sistema",
+            "entidade_id": 0,
+            "prioridade": "alta"
+        })
 
     # Inserir apenas alertas novos (evitar duplicatas verificando título)
     try:
@@ -1039,16 +1100,19 @@ elif "Clientes" in menu:
                 par    = st.number_input("Parcelas Ativas (R$)", min_value=0.0, step=50.0)
                 canal  = st.selectbox("Canal", ["Panfletagem","Rádio","WhatsApp","Indicação","Instagram","Google","Presencial"])
                 status = st.selectbox("Status", ["Lead Quente","Em análise","Ativo"])
-                int_   = st.selectbox("Interesse", ["Consignado INSS","Portabilidade","Refinanciamento","Cartão Consignado","Consignado Servidor"])
+                int_   = st.selectbox("Interesse", ["Consignado INSS","Portabilidade","Refinanciamento","Cartão Consignado","Consignado Servidor","Desenrola Brasil"])
+                bloq   = st.checkbox("Benefício bloqueado para consignado?", help="Após averbação, INSS bloqueia para novas operações")
             obs = st.text_area("Observações", height=60)
 
             if st.form_submit_button("✅ Cadastrar Cliente", use_container_width=True):
                 if not nome or not ben:
                     st.error("Nome e Benefício são obrigatórios.")
                 else:
+                    obs_final = obs
+                    if bloq: obs_final = f"[BENEFÍCIO BLOQUEADO - aguarda desbloqueio no Meu INSS] {obs}"
                     ins_cli({"nome":nome,"cpf":cpf,"telefone":tel,"email":email,
                         "data_nasc":str(dn),"beneficio":float(ben),"parcelas":float(par),
-                        "canal":canal,"status":status,"interesse":int_,"observacoes":obs})
+                        "canal":canal,"status":status,"interesse":int_,"observacoes":obs_final})
                     st.success(f"✅ {nome} cadastrado!")
                     st.rerun()
 
@@ -1142,7 +1206,10 @@ elif "Clientes" in menu:
                     g1,g2,g3,g4 = st.columns(4)
                     with g1: kpi_html("Benefício", fmt(row['beneficio']), "", "navy")
                     with g2: kpi_html("Margem disp.", fmt(m), "", "green" if m>300 else "red" if m<=0 else "yellow")
-                    with g3: kpi_html("Próx. INSS", row['prox'].strftime('%d/%m/%Y') if row['prox'] else "—", f"em {int(row['dias'])} dia(s)" if row['dias'] else "", "navy")
+                    _dias_val = row.get('dias')
+                    _dias_str = f"em {int(float(_dias_val))} dia(s)" if _dias_val is not None and str(_dias_val) not in ['nan','None',''] else ""
+                    _prox_str = row['prox'].strftime('%d/%m/%Y') if row.get('prox') and str(row['prox']) not in ['NaT','None',''] else "—"
+                    with g3: kpi_html("Próx. INSS", _prox_str, _dias_str, "navy")
                     with g4: kpi_html("Score", f"{row['score']}%", "propensão", "green" if row['score']>=75 else "yellow")
 
                     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
@@ -1327,6 +1394,185 @@ elif "Clientes" in menu:
         st.info("Nenhum cliente cadastrado ainda.")
 
 # ═══ LEADS ═══
+
+
+elif "Contratos" in menu:
+    page_header("📄", "Contratos", "Carteira ativa e controle de comissões")
+
+    df_cli = load_clientes()
+    dfc    = load_contratos()
+
+    if not dfc.empty:
+        tv = dfc["valor"].sum()
+        c1, c2, c3 = st.columns(3)
+        with c1: kpi_html("Carteira Total",     fmt(tv),           "",        "navy")
+        with c2: kpi_html("Comissão Estimada",  fmt(tv*0.03),      "3%",      "green")
+        with c3: kpi_html("Contratos Ativos",   len(dfc),          "",        "green")
+        st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
+    if st.button("＋ Novo Contrato", key="btn_new_ct"):
+        st.session_state["show_form_ct"] = not st.session_state.get("show_form_ct", False)
+    if st.session_state.get("show_form_ct", False):
+        if df_cli.empty:
+            st.warning("Cadastre um cliente primeiro.")
+        else:
+            with st.form("form_ct", clear_on_submit=True):
+                cm  = {r["nome"]: r["id"] for _, r in df_cli.iterrows()}
+                c1, c2 = st.columns(2)
+                with c1:
+                    cs  = st.selectbox("Cliente", list(cm.keys()))
+                    bco = st.selectbox("Banco", ["Banco BMG","Banco Safra","Banco PAN","Caixa","BRB","Facta","Itaú Consig."])
+                    val = st.number_input("Valor (R$)", min_value=0.0, step=100.0)
+                with c2:
+                    pt  = st.number_input("Parcelas", min_value=1, max_value=108, value=36, step=1)
+                    tx2 = st.number_input("Taxa (% a.m.)", min_value=0.5, max_value=5.0, value=1.8, step=0.1)
+                    di  = st.date_input("Data Início")
+                if st.form_submit_button("✅ Registrar", use_container_width=True):
+                    ins_ct({"cliente_id":cm[cs],"banco":bco,"valor":float(val),"parcelas_total":int(pt),"taxa_juros":float(tx2),"data_inicio":str(di)})
+                    st.success("Contrato registrado!")
+                    st.rerun()
+
+    if not dfc.empty:
+        dfc["parcela"] = dfc.apply(lambda r: round(
+            r["valor"]*(r["taxa_juros"]/100*(1+r["taxa_juros"]/100)**r["parcelas_total"])/
+            ((1+r["taxa_juros"]/100)**r["parcelas_total"]-1), 2
+        ) if r["parcelas_total"]>0 else 0, axis=1)
+        dfc["comissao"] = (dfc["valor"]*0.03).round(2)
+
+        st.markdown('<div class="chart-card"><div class="chart-title">📋 Carteira de Contratos</div>', unsafe_allow_html=True)
+        st.dataframe(
+            dfc[["cliente_nome","banco","valor","parcelas_total","parcela","comissao","data_inicio"]].rename(columns={
+                "cliente_nome":"Cliente","banco":"Banco","valor":"Valor (R$)",
+                "parcelas_total":"Parcelas","parcela":"Parcela/mês","comissao":"Comissão","data_inicio":"Início"
+            }),
+            use_container_width=True, hide_index=True
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# ═══ SIMULADOR ═══
+
+
+
+elif "Simulador" in menu:
+    page_header("🧮", "Simulador de Crédito", "Calcule margem, simule propostas e compare portabilidade")
+
+    st.markdown("""<div style="background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.25);border-radius:11px;padding:12px 16px;margin-bottom:16px"><div style="color:#60A5FA;font-size:12px;font-weight:700;margin-bottom:6px">📋 Normas vigentes — MP 1.355 / Maio 2026</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;color:rgba(255,255,255,0.6)"><div>✅ <b style="color:rgba(255,255,255,0.85)">Margem:</b> 40% do benefício</div><div>✅ <b style="color:rgba(255,255,255,0.85)">Prazo máximo:</b> 108 meses</div><div>✅ <b style="color:rgba(255,255,255,0.85)">Carência:</b> até 90 dias</div><div>✅ <b style="color:rgba(255,255,255,0.85)">Cartão consignado:</b> até 5% separado</div><div>⚠️ <b style="color:#FBBF24">Proibido:</b> fechamento por WhatsApp/telefone</div><div>⚠️ <b style="color:#FBBF24">Exige:</b> biometria facial no Meu INSS</div></div></div>""", unsafe_allow_html=True)
+
+    tab1, tab2 = st.tabs(["💳 Simulação de Crédito", "🔄 Calculadora de Portabilidade"])
+
+    with tab1:
+        c1, c2 = st.columns([1, 1.2])
+        with c1:
+            st.markdown("#### Dados do Cliente")
+            ben2 = st.number_input("Benefício (R$)", min_value=0.0, value=1412.0, step=50.0)
+            pa2  = st.number_input("Parcelas Ativas (R$)", min_value=0.0, value=0.0, step=50.0)
+            mc = ben2*0.4; md = max(0, mc-pa2)
+            pct2 = min(100, round(pa2/mc*100, 1)) if mc > 0 else 0
+            cor_md = GREEN if md > 300 else YELLOW if md > 0 else RED
+
+            st.markdown(f"""
+            <div style="background:white;border-radius:12px;padding:16px 18px;box-shadow:0 1px 4px rgba(0,0,0,0.07);margin-top:8px">
+                <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F1F5F9;font-size:13px">
+                    <span style="color:#64748B">Margem consignável (40%)</span>
+                    <span style="font-weight:600;color:{NAVY}">{fmt(mc)}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F1F5F9;font-size:13px">
+                    <span style="color:#64748B">Parcelas ativas</span>
+                    <span style="font-weight:600;color:{RED}">{fmt(pa2)}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:8px 0 4px;font-size:13px">
+                    <span style="color:#64748B">Margem disponível</span>
+                    <span style="font-size:22px;font-weight:800;color:{cor_md}">{fmt(md)}</span>
+                </div>
+                <div class="progress-bar-wrap">
+                    <div class="progress-bar-fill" style="width:{pct2}%;background:{'#1A7A5E' if pct2<60 else '#E67E22' if pct2<90 else '#C0392B'}"></div>
+                </div>
+                <div style="font-size:10px;color:#94A3B8;margin-top:4px">Comprometido: {pct2:.0f}%</div>
+            </div>""", unsafe_allow_html=True)
+
+        with c2:
+            st.markdown("#### Simulação")
+            val2  = st.number_input("Valor desejado (R$)", min_value=0.0, value=3000.0, step=500.0)
+            prazo = st.select_slider("Prazo", options=[12,24,36,48,60,72,84,96,108], value=36)
+            taxa3 = st.slider("Taxa (% a.m.)", 0.5, 3.5, 1.8, 0.1)
+
+            if val2 > 0 and ben2 > 0:
+                r2    = taxa3/100
+                fator = (r2*(1+r2)**prazo)/((1+r2)**prazo-1)
+                parc  = val2*fator; tot = parc*prazo; jur = tot-val2
+                cabe  = parc <= md; cr = GREEN if cabe else RED
+                msg   = "✅ Cabe na margem" if cabe else "❌ Excede a margem"
+
+                st.markdown(f"""
+                <div style="background:white;border-radius:12px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,0.07);border-top:4px solid {cr}">
+                    <div style="text-align:center;padding:12px 0 16px">
+                        <div style="font-size:11px;color:#94A3B8;margin-bottom:5px">Parcela mensal</div>
+                        <div style="font-size:34px;font-weight:800;color:{cr}">{fmt(parc)}</div>
+                        <div style="font-size:12px;font-weight:600;color:{cr};margin-top:4px">{msg}</div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid #F1F5F9;font-size:13px">
+                        <span style="color:#64748B">Total a pagar</span><span style="font-weight:600">{fmt(tot)}</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid #F1F5F9;font-size:13px">
+                        <span style="color:#64748B">Juros total</span><span style="font-weight:600;color:{RED}">{fmt(jur)}</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid #F1F5F9;font-size:13px">
+                        <span style="color:#64748B">Comissão estimada</span><span style="font-weight:600;color:{GREEN}">{fmt(val2*0.03)}</span>
+                    </div>
+                </div>""", unsafe_allow_html=True)
+
+        if val2 > 0 and ben2 > 0:
+            st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+            st.markdown('<div class="chart-card"><div class="chart-title">Comparativo de Prazos — 🟢 verde = cabe na margem</div>', unsafe_allow_html=True)
+            pzs = [12,24,36,48,60,72,84,96,108]; r2 = taxa3/100
+            pcs = [round(val2*(r2*(1+r2)**p)/((1+r2)**p-1), 2) for p in pzs]
+            fig5 = go.Figure(go.Bar(
+                x=[f"{p}m" for p in pzs], y=pcs,
+                marker_color=[GREEN if p<=md else RED for p in pcs],
+                marker_line_width=0,
+                text=[fmt(p) for p in pcs], textposition="outside", textfont=dict(size=10)
+            ))
+            fig5.add_hline(y=md, line_dash="dot", line_color=GREEN, line_width=2,
+                annotation_text=f"Margem {fmt(md)}", annotation_font_size=10)
+            fig5.update_layout(height=260, **plotly_theme())
+            st.plotly_chart(fig5, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    with tab2:
+        st.markdown("#### Calculadora de Portabilidade")
+        st.caption("Verifique se vale migrar o contrato para uma taxa menor.")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("**Contrato Atual**")
+            va  = st.number_input("Saldo devedor (R$)", min_value=0.0, value=8000.0, step=100.0, key="pva")
+            pra = st.number_input("Parcelas restantes", min_value=1, max_value=84, value=48, key="ppra")
+            txa = st.number_input("Taxa atual (% a.m.)", min_value=0.1, max_value=5.0, value=2.1, step=0.1, key="ptxa")
+        with c2:
+            st.markdown("**Nova Proposta**")
+            txn = st.number_input("Nova taxa (% a.m.)", min_value=0.1, max_value=5.0, value=1.7, step=0.1, key="ptxn")
+            prn = st.number_input("Novo prazo (meses)", min_value=1, max_value=108, value=48, key="pprn")
+
+        if va > 0:
+            ra = txa/100; rn = txn/100
+            pca = va*(ra*(1+ra)**pra)/((1+ra)**pra-1)
+            pcn = va*(rn*(1+rn)**prn)/((1+rn)**prn-1)
+            eco = pca-pcn; ecot = pca*pra-pcn*prn; vale = eco > 0; ce = GREEN if vale else RED
+            st.markdown(f"""
+            <div style="background:{'#F0FDF4' if vale else '#FEF2F2'};border:1px solid {'#86EFAC' if vale else '#FECACA'};
+                border-radius:12px;padding:20px;margin-top:16px">
+                <div style="font-size:13px;font-weight:700;color:{ce};margin-bottom:14px">
+                    {'✅ Portabilidade VALE A PENA' if vale else '❌ Portabilidade NÃO compensa'}
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;text-align:center">
+                    {"".join([f'<div><div style="font-size:10px;color:#64748B;margin-bottom:3px">{l}</div><div style="font-size:17px;font-weight:700;color:{c3}">{v}</div></div>' for l,v,c3 in [("PARCELA ATUAL",fmt(pca),RED),("NOVA PARCELA",fmt(pcn),GREEN),("ECONOMIA/MÊS",fmt(abs(eco)),ce)]])}
+                </div>
+                <div style="text-align:center;margin-top:12px;font-size:12px;color:#64748B">
+                    Economia total no período: <strong style="color:{ce}">{fmt(abs(ecot))}</strong>
+                </div>
+            </div>""", unsafe_allow_html=True)
+
+# ═══ ALERTAS ═══
+
 elif "Leads" in menu:
     page_header("📋", "Funil de Vendas", "Pipeline completo — do primeiro contato ao pagamento")
 
@@ -1504,12 +1750,23 @@ elif "Leads" in menu:
             st.info("Nenhum lead cadastrado.")
         else:
             # Filtros
-            cf1, cf2, cf3 = st.columns(3)
-            with cf1: fet = st.multiselect("Etapa", ETAPAS_FUNIL, default=ETAPAS_FUNIL)
+            cf1, cf2, cf3, cf4 = st.columns(4)
+            with cf1: fet = st.multiselect("Etapa", ETAPAS_FUNIL, default=[e for e in ETAPAS_FUNIL if e != "Contrato Pago"])
             with cf2: ftp = st.multiselect("Temperatura", ["Quente","Morno","Frio"], default=["Quente","Morno","Frio"])
-            with cf3: fca = st.multiselect("Canal", dfl["canal"].unique().tolist(), default=dfl["canal"].unique().tolist())
+            with cf3: fca = st.multiselect("Canal", sorted(dfl["canal"].dropna().unique().tolist()), default=sorted(dfl["canal"].dropna().unique().tolist()))
+            with cf4: mostrar_conv = st.checkbox("Ver convertidos", value=False)
 
-            dff = dfl[dfl["etapa"].isin(fet) & dfl["temperatura"].isin(ftp) & dfl["canal"].isin(fca)] if not dfl.empty else dfl
+            if not fet: fet = ETAPAS_FUNIL
+            if not ftp: ftp = ["Quente","Morno","Frio"]
+            if not fca: fca = dfl["canal"].dropna().unique().tolist()
+
+            # Filtro base
+            dff = dfl[dfl["etapa"].isin(fet) & dfl["canal"].isin(fca)] if not dfl.empty else dfl
+            # Temperatura: excluir "Convertido" a menos que checkbox marcado
+            if mostrar_conv:
+                dff = dff[dff["temperatura"].isin(ftp + ["Convertido"])]
+            else:
+                dff = dff[dff["temperatura"].isin(ftp)]
             dff = dff.sort_values(["temperatura","etapa"], key=lambda x: x.map({"Quente":0,"Morno":1,"Frio":2}).fillna(3) if x.name=="temperatura" else x)
 
             st.markdown(f"<p style='color:rgba(255,255,255,0.4);font-size:12px;margin:6px 0 10px'><b>{len(dff)}</b> lead(s)</p>", unsafe_allow_html=True)
@@ -1563,16 +1820,27 @@ elif "Leads" in menu:
                         if st.button("👤 → Cliente", key=f"conv_{row['id']}", help="Converter para cliente"):
                             st.session_state[f"confirm_conv_{row['id']}"] = True
                     if st.session_state.get(f"confirm_conv_{row['id']}"):
-                        st.warning(f"Converter **{row['nome']}** para cliente?")
+                        st.markdown(f"""
+                        <div style="background:linear-gradient(135deg,#0D2B1F,#0A2318);
+                            border:1px solid rgba(74,222,128,0.3);border-radius:12px;
+                            padding:14px 16px;margin-top:8px">
+                            <div style="color:#4ADE80;font-size:12px;font-weight:700;margin-bottom:4px">
+                                👤 Converter para Cliente
+                            </div>
+                            <div style="color:rgba(255,255,255,0.7);font-size:12px">
+                                <b style="color:white">{row['nome']}</b> será migrado para a base de clientes.
+                                Os dados serão transferidos automaticamente.
+                            </div>
+                        </div>""", unsafe_allow_html=True)
                         cc1, cc2 = st.columns(2)
                         with cc1:
-                            if st.button("✅ Confirmar", key=f"conv_ok_{row['id']}"):
+                            if st.button("Confirmar conversão", key=f"conv_ok_{row['id']}", use_container_width=True):
                                 converter_lead_para_cliente(row)
                                 st.session_state[f"confirm_conv_{row['id']}"] = False
-                                st.success(f"✅ {row['nome']} convertido para cliente!")
+                                st.success(f"✅ {row['nome'].split()[0]} convertido para cliente!")
                                 st.rerun()
                         with cc2:
-                            if st.button("❌ Cancelar", key=f"conv_no_{row['id']}"):
+                            if st.button("Voltar", key=f"conv_no_{row['id']}", use_container_width=True):
                                 st.session_state[f"confirm_conv_{row['id']}"] = False
                                 st.rerun()
 
