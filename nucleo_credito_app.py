@@ -520,6 +520,29 @@ def ins_cli(d):
     d["telefone"] = enc(d.get("telefone", ""))
     sb.table("clientes").insert(d).execute()
 
+def upd_cli(id, d):
+    """Atualiza dados do cliente — edição completa"""
+    if "cpf" in d and d["cpf"]: d["cpf"] = enc(d["cpf"])
+    if "telefone" in d and d["telefone"]: d["telefone"] = enc(d["telefone"])
+    sb.table("clientes").update(d).eq("id", id).execute()
+
+def converter_lead_para_cliente(lead_row):
+    """Migra dados do lead para a tabela clientes"""
+    d = {
+        "nome":      lead_row.get("nome", ""),
+        "telefone":  lead_row.get("telefone", ""),
+        "email":     lead_row.get("email", ""),
+        "canal":     lead_row.get("canal", ""),
+        "interesse": lead_row.get("interesse", ""),
+        "beneficio": float(lead_row.get("beneficio", 0) or 0),
+        "parcelas":  0.0,
+        "status":    "Ativo",
+        "observacoes": f"Convertido do funil em {date.today().strftime('%d/%m/%Y')}. {lead_row.get('observacoes','')}"
+    }
+    ins_cli(d)
+    # Marca lead como convertido
+    sb.table("leads").update({"etapa":"Contrato Pago","status":"Convertido"}).eq("id", int(lead_row["id"])).execute()
+
 def ins_lead(d):   sb.table("leads").insert(d).execute()
 def ins_hist(d):   sb.table("historico").insert(d).execute()
 def ins_fu(d):     sb.table("followups").insert(d).execute()
@@ -1211,6 +1234,52 @@ elif "Clientes" in menu:
                             if ok_e: st.success("✅ Enviado!")
                             else: st.error(f"Erro: {err_e}")
 
+                    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+                    if st.button(f"✏️ Editar dados", key=f"edit_btn_{row['id']}"):
+                        st.session_state[f"edit_cli_{row['id']}"] = not st.session_state.get(f"edit_cli_{row['id']}", False)
+
+                    if st.session_state.get(f"edit_cli_{row['id']}", False):
+                        st.markdown("""
+                        <div style="background:#0D1B35;border:1px solid rgba(74,222,128,0.2);
+                            border-radius:12px;padding:16px;margin-top:8px">
+                            <div style="color:#4ADE80;font-size:12px;font-weight:700;margin-bottom:12px">
+                                ✏️ Editar Dados do Cliente
+                            </div>""", unsafe_allow_html=True)
+
+                        with st.form(f"edit_cli_{row['id']}_form"):
+                            ec1, ec2, ec3 = st.columns(3)
+                            with ec1:
+                                e_nome   = st.text_input("Nome completo", value=row["nome"])
+                                e_social = st.text_input("Nome social (opcional)", value=row.get("nome_social","") or "")
+                                e_cpf    = st.text_input("CPF", value=row["cpf_raw"] or "", help="Será criptografado")
+                                e_tel    = st.text_input("Telefone", value=row["tel_raw"] or "", help="Será criptografado")
+                            with ec2:
+                                e_email  = st.text_input("Email", value=row.get("email","") or "")
+                                e_ben    = st.number_input("Benefício (R$)", value=float(row["beneficio"]), min_value=0.0, step=50.0)
+                                e_par    = st.number_input("Parcelas ativas (R$)", value=float(row["parcelas"]), min_value=0.0, step=50.0)
+                                e_status = st.selectbox("Status", ["Lead Quente","Em análise","Ativo","Inativo"],
+                                    index=["Lead Quente","Em análise","Ativo","Inativo"].index(row["status"]) if row["status"] in ["Lead Quente","Em análise","Ativo","Inativo"] else 0)
+                            with ec3:
+                                e_canal  = st.selectbox("Canal", ["Panfletagem","Rádio","WhatsApp","Indicação","Instagram","Google","Presencial"],
+                                    index=["Panfletagem","Rádio","WhatsApp","Indicação","Instagram","Google","Presencial"].index(row["canal"]) if row["canal"] in ["Panfletagem","Rádio","WhatsApp","Indicação","Instagram","Google","Presencial"] else 0)
+                                e_int    = st.selectbox("Interesse", ["Consignado INSS","Portabilidade","Refinanciamento","Cartão Consignado","Consignado Servidor","Empréstimo Pessoal"],
+                                    index=["Consignado INSS","Portabilidade","Refinanciamento","Cartão Consignado","Consignado Servidor","Empréstimo Pessoal"].index(row["interesse"]) if row.get("interesse") in ["Consignado INSS","Portabilidade","Refinanciamento","Cartão Consignado","Consignado Servidor","Empréstimo Pessoal"] else 0)
+                                e_obs    = st.text_area("Observações", value=row.get("observacoes","") or "", height=80)
+
+                            if st.form_submit_button("💾 Salvar Alterações", use_container_width=True):
+                                upd_cli(row["id"], {
+                                    "nome": e_nome, "email": e_email,
+                                    "cpf": e_cpf, "telefone": e_tel,
+                                    "beneficio": float(e_ben), "parcelas": float(e_par),
+                                    "canal": e_canal, "status": e_status,
+                                    "interesse": e_int, "observacoes": e_obs
+                                })
+                                st.success("✅ Dados atualizados!")
+                                st.session_state[f"edit_cli_{row['id']}"] = False
+                                st.rerun()
+
+                        st.markdown('</div>', unsafe_allow_html=True)
+
                     if st.button(f"🗑 Remover cliente", key=f"del_{row['id']}"):
                         del_cli(row["id"])
                         st.rerun()
@@ -1489,6 +1558,23 @@ elif "Leads" in menu:
                     if nova_tp != temp:
                         sb.table("leads").update({"temperatura": nova_tp}).eq("id", row["id"]).execute()
                         st.rerun()
+
+                    if et in ["Aprovado","Contrato Pago"] and row.get("etapa") != "convertido_cliente":
+                        if st.button("👤 → Cliente", key=f"conv_{row['id']}", help="Converter para cliente"):
+                            st.session_state[f"confirm_conv_{row['id']}"] = True
+                    if st.session_state.get(f"confirm_conv_{row['id']}"):
+                        st.warning(f"Converter **{row['nome']}** para cliente?")
+                        cc1, cc2 = st.columns(2)
+                        with cc1:
+                            if st.button("✅ Confirmar", key=f"conv_ok_{row['id']}"):
+                                converter_lead_para_cliente(row)
+                                st.session_state[f"confirm_conv_{row['id']}"] = False
+                                st.success(f"✅ {row['nome']} convertido para cliente!")
+                                st.rerun()
+                        with cc2:
+                            if st.button("❌ Cancelar", key=f"conv_no_{row['id']}"):
+                                st.session_state[f"confirm_conv_{row['id']}"] = False
+                                st.rerun()
 
 
 elif "Alertas" in menu:
