@@ -89,58 +89,54 @@ button[title="Collapse sidebar"] {{
 }}
 
 /* ── FILE UPLOADER PREMIUM ── */
-[data-testid="stFileUploader"] {{
-    margin-top: 0 !important;
+[data-testid="stFileUploader"] > label {{
+    color: rgba(255,255,255,0.7) !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    margin-bottom: 6px !important;
+    display: block !important;
 }}
 [data-testid="stFileUploader"] section {{
     background: rgba(26,122,94,0.04) !important;
-    border: 1.5px dashed rgba(26,122,94,0.35) !important;
+    border: 1.5px dashed rgba(26,122,94,0.4) !important;
     border-radius: 10px !important;
-    padding: 12px 16px !important;
-    min-height: 52px !important;
+    padding: 16px !important;
+    text-align: center !important;
+    cursor: pointer !important;
 }}
 [data-testid="stFileUploader"] section:hover {{
     border-color: #1A7A5E !important;
     background: rgba(26,122,94,0.08) !important;
 }}
-[data-testid="stFileUploader"] section > input[type="file"] {{
-    opacity: 0 !important;
-    position: absolute !important;
+[data-testid="stFileUploader"] section > div {{
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 8px !important;
 }}
-[data-testid="stFileUploader"] section button[data-testid="baseButton-secondary"] {{
+[data-testid="stFileUploader"] section button {{
     background: #1A7A5E !important;
     color: white !important;
     border: none !important;
-    border-radius: 7px !important;
-    font-weight: 600 !important;
-    font-size: 12px !important;
-    padding: 6px 14px !important;
+    border-radius: 8px !important;
+    font-weight: 700 !important;
+    font-size: 13px !important;
+    padding: 8px 20px !important;
+    cursor: pointer !important;
+    width: auto !important;
 }}
-[data-testid="stFileUploader"] section button[data-testid="baseButton-secondary"] p {{
+[data-testid="stFileUploader"] section button p {{
     color: white !important;
-    font-size: 12px !important;
+    font-size: 13px !important;
+    margin: 0 !important;
+    font-weight: 700 !important;
 }}
 [data-testid="stFileUploader"] section > div > span {{
     display: none !important;
-    visibility: hidden !important;
-    width: 0 !important;
-    height: 0 !important;
-    overflow: hidden !important;
-}}
-[data-testid="stFileUploader"] section > div {{
-    display: flex !important;
-    align-items: center !important;
-    gap: 10px !important;
 }}
 [data-testid="stFileUploader"] section small {{
     color: rgba(255,255,255,0.3) !important;
     font-size: 10px !important;
-}}
-[data-testid="stFileUploaderFile"] {{
-    background: rgba(255,255,255,0.05) !important;
-    border-radius: 8px !important;
-    padding: 8px 12px !important;
-    margin-top: 8px !important;
 }}
 
 /* ── SIDEBAR RADIO MENU ── */
@@ -1616,26 +1612,16 @@ elif "Clientes" in menu:
 
                     doc_tipos = ["RG / CNH", "CPF", "Comprovante de Residência", "Extrato INSS / Carta de Concessão", "Contracheque / Holerite", "Proposta Assinada", "Contrato", "Outros"]
 
-                    # CSS para esconder label nativo do uploader
-                    st.markdown(f"""
-                    <style>
-                    [data-testid="stFileUploader"][key="upload_{row['id']}"] label {{
-                        display: none !important;
-                    }}
-                    </style>
-                    """, unsafe_allow_html=True)
-
                     col_up1, col_up2 = st.columns([1,2])
                     with col_up1:
                         doc_tipo = st.selectbox("Tipo de documento", doc_tipos,
                             key=f"dtype_{row['id']}")
                     with col_up2:
-                        st.markdown('<p style="font-size:12px;color:rgba(255,255,255,0.6);font-weight:600;margin:0 0 6px">Selecionar arquivo</p>', unsafe_allow_html=True)
                         arquivo = st.file_uploader(
-                            "x",
+                            "📎 Clique para selecionar ou arraste o arquivo aqui",
                             type=["pdf","jpg","jpeg","png"],
                             key=f"upload_{row['id']}",
-                            label_visibility="hidden"
+                            label_visibility="visible"
                         )
 
                     if arquivo and sb:
