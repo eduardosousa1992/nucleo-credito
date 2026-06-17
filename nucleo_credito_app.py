@@ -1590,7 +1590,7 @@ elif "Leads" in menu:
     TEMP_CORES   = {"Quente":"#EF4444","Morno":"#F59E0B","Frio":"#60A5FA"}
 
     total_leads = len(dfl) if not dfl.empty else 0
-    em_aberto   = len(dfl[~dfl["etapa"].isin(["Contrato Pago","Perdido"])]) if not dfl.empty else 0
+    em_aberto   = len(dfl[~dfl["etapa"].isin(["Contrato Pago","Perdido"]) & (dfl["temperatura"] != "Convertido")]) if not dfl.empty else 0
     convertidos = len(dfl[dfl["etapa"]=="Contrato Pago"]) if not dfl.empty else 0
     taxa_conv   = round(convertidos/total_leads*100,1) if total_leads > 0 else 0
     vl_pipeline = dfl[~dfl["etapa"].isin(["Perdido"])]["valor_estimado"].sum() if not dfl.empty and "valor_estimado" in dfl.columns else 0
@@ -1645,7 +1645,8 @@ elif "Leads" in menu:
         else:
             # Funil visual com % de conversão
             etapas_ativas = [e for e in ETAPAS_FUNIL if e != "Perdido"]
-            totais = {e: len(dfl[dfl["etapa"]==e]) for e in ETAPAS_FUNIL}
+            dfl_ativo = dfl[dfl["temperatura"] != "Convertido"]
+            totais = {e: len(dfl_ativo[dfl_ativo["etapa"]==e]) for e in ETAPAS_FUNIL}
 
             # Barra de progresso do funil
             st.markdown('<div class="chart-card">', unsafe_allow_html=True)
@@ -1678,7 +1679,7 @@ elif "Leads" in menu:
                 etapas_row = etapas_ativas[row_start:row_start+n_cols]
                 cols = st.columns(len(etapas_row))
                 for col_idx, etapa in enumerate(etapas_row):
-                    grupo = dfl[dfl["etapa"]==etapa]
+                    grupo = dfl[(dfl["etapa"]==etapa) & (dfl["temperatura"] != "Convertido")]
                     cor   = CORES_ETAPA[etapa]
                     with cols[col_idx]:
                         st.markdown(f"""
@@ -1728,7 +1729,7 @@ elif "Leads" in menu:
                         st.markdown('</div>', unsafe_allow_html=True)
 
             # Perdidos separado
-            perdidos = dfl[dfl["etapa"]=="Perdido"]
+            perdidos = dfl[(dfl["etapa"]=="Perdido") & (dfl["temperatura"] != "Convertido")]
             if len(perdidos) > 0:
                 st.markdown(f"""
                 <div style="background:#0D1B35;border:1px solid #F8717130;border-radius:12px;
