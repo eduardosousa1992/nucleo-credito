@@ -1590,7 +1590,7 @@ elif "Leads" in menu:
     TEMP_CORES   = {"Quente":"#EF4444","Morno":"#F59E0B","Frio":"#60A5FA"}
 
     total_leads = len(dfl) if not dfl.empty else 0
-    em_aberto   = len(dfl[~dfl["etapa"].isin(["Contrato Pago","Perdido"]) & (dfl["temperatura"] != "Convertido")]) if not dfl.empty else 0
+    em_aberto   = len(dfl[(~dfl["etapa"].isin(["Contrato Pago","Perdido"])) & (dfl["status"] != "Convertido")]) if not dfl.empty else 0
     convertidos = len(dfl[dfl["etapa"]=="Contrato Pago"]) if not dfl.empty else 0
     taxa_conv   = round(convertidos/total_leads*100,1) if total_leads > 0 else 0
     vl_pipeline = dfl[~dfl["etapa"].isin(["Perdido"])]["valor_estimado"].sum() if not dfl.empty and "valor_estimado" in dfl.columns else 0
@@ -1645,7 +1645,7 @@ elif "Leads" in menu:
         else:
             # Funil visual com % de conversão
             etapas_ativas = [e for e in ETAPAS_FUNIL if e != "Perdido"]
-            dfl_ativo = dfl[dfl["temperatura"] != "Convertido"]
+            dfl_ativo = dfl[dfl["status"] != "Convertido"]
             totais = {e: len(dfl_ativo[dfl_ativo["etapa"]==e]) for e in ETAPAS_FUNIL}
 
             # Barra de progresso do funil
@@ -1679,7 +1679,7 @@ elif "Leads" in menu:
                 etapas_row = etapas_ativas[row_start:row_start+n_cols]
                 cols = st.columns(len(etapas_row))
                 for col_idx, etapa in enumerate(etapas_row):
-                    grupo = dfl[(dfl["etapa"]==etapa) & (dfl["temperatura"] != "Convertido")]
+                    grupo = dfl[(dfl["etapa"]==etapa) & (dfl["status"] != "Convertido")]
                     cor   = CORES_ETAPA[etapa]
                     with cols[col_idx]:
                         st.markdown(f"""
@@ -1729,7 +1729,7 @@ elif "Leads" in menu:
                         st.markdown('</div>', unsafe_allow_html=True)
 
             # Perdidos separado
-            perdidos = dfl[(dfl["etapa"]=="Perdido") & (dfl["temperatura"] != "Convertido")]
+            perdidos = dfl[(dfl["etapa"]=="Perdido") & (dfl["status"] != "Convertido")]
             if len(perdidos) > 0:
                 st.markdown(f"""
                 <div style="background:#0D1B35;border:1px solid #F8717130;border-radius:12px;
@@ -1752,22 +1752,26 @@ elif "Leads" in menu:
         else:
             # Filtros
             cf1, cf2, cf3, cf4 = st.columns(4)
-            with cf1: fet = st.multiselect("Etapa", ETAPAS_FUNIL, default=[e for e in ETAPAS_FUNIL if e != "Contrato Pago"])
+            with cf4: mostrar_conv = st.checkbox("Ver convertidos", value=False)
+            with cf1: fet = st.multiselect("Etapa", ETAPAS_FUNIL, default=[e for e in ETAPAS_FUNIL if e not in ["Contrato Pago","Perdido"]])
             with cf2: ftp = st.multiselect("Temperatura", ["Quente","Morno","Frio"], default=["Quente","Morno","Frio"])
             with cf3: fca = st.multiselect("Canal", sorted(dfl["canal"].dropna().unique().tolist()), default=sorted(dfl["canal"].dropna().unique().tolist()))
-            with cf4: mostrar_conv = st.checkbox("Ver convertidos", value=False)
 
             if not fet: fet = ETAPAS_FUNIL
             if not ftp: ftp = ["Quente","Morno","Frio"]
             if not fca: fca = dfl["canal"].dropna().unique().tolist()
 
-            # Filtro base
-            dff = dfl[dfl["etapa"].isin(fet) & dfl["canal"].isin(fca)] if not dfl.empty else dfl
-            # Temperatura: excluir "Convertido" a menos que checkbox marcado
             if mostrar_conv:
-                dff = dff[dff["temperatura"].isin(ftp + ["Convertido"])]
+                # Mostra APENAS convertidos (status=Convertido)
+                dff = dfl[dfl["status"] == "Convertido"] if not dfl.empty else dfl
             else:
-                dff = dff[dff["temperatura"].isin(ftp)]
+                # Mostra leads ativos — exclui convertidos
+                dff = dfl[
+                    dfl["etapa"].isin(fet) &
+                    dfl["canal"].isin(fca) &
+                    dfl["temperatura"].isin(ftp) &
+                    (dfl["status"] != "Convertido")
+                ] if not dfl.empty else dfl
             dff = dff.sort_values(["temperatura","etapa"], key=lambda x: x.map({"Quente":0,"Morno":1,"Frio":2}).fillna(3) if x.name=="temperatura" else x)
 
             st.markdown(f"<p style='color:rgba(255,255,255,0.4);font-size:12px;margin:6px 0 10px'><b>{len(dff)}</b> lead(s)</p>", unsafe_allow_html=True)
