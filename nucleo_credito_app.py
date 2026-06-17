@@ -1032,9 +1032,14 @@ elif "Clientes" in menu:
     df = load_clientes()
     if not df.empty:
         cf1, cf2, cf3 = st.columns(3)
-        with cf1: fs = st.multiselect("Status", df["status"].unique().tolist(), default=df["status"].unique().tolist())
-        with cf2: fc = st.multiselect("Canal",  df["canal"].unique().tolist(),  default=df["canal"].unique().tolist())
+        _status_opts = sorted(df["status"].dropna().unique().tolist())
+        _canal_opts  = sorted(df["canal"].dropna().unique().tolist())
+        with cf1: fs = st.multiselect("Status", _status_opts, default=_status_opts)
+        with cf2: fc = st.multiselect("Canal",  _canal_opts,  default=_canal_opts)
         with cf3: oo = st.checkbox("Apenas oportunidades (margem > R$ 300)")
+
+        if not fs: fs = _status_opts
+        if not fc: fc = _canal_opts
 
         dff = df[df["status"].isin(fs) & df["canal"].isin(fc)]
         if oo: dff = dff[dff["margem"] > 300]
