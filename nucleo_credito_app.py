@@ -920,6 +920,102 @@ def exportar_contratos_excel(dfc):
     df_exp = dfc[list(cols_disp.keys())].rename(columns=cols_disp)
     return exportar_excel(df_exp, "Contratos")
 
+def gerar_email_master(nome_destinatario, titulo, corpo_html, cta_texto="Falar no WhatsApp",
+                        cta_link="https://wa.me/5511952723015", badge_html=""):
+    """Template MASTER de email — única fonte de verdade para todas as campanhas.
+    Baseado em práticas de mercado 2026 (Mailmodo, Stripo, GetResponse, Brevo):
+      • Tabelas para layout — Outlook usa engine do Word, não suporta flexbox/div
+      • Fontes web-safe (Arial) — 'Inter' não existe na maioria dos clientes de email
+      • Largura 600px — faixa segura testada em todos os clientes principais
+      • Header com identidade visual consistente da marca
+      • Um único CTA em destaque (regra: 1 ação primária por email)
+      • Assinatura executiva no rodapé do corpo (Eduardo Sousa, CTO)
+      • Rodapé legal com endereço físico + unsubscribe — exigência LGPD/CAN-SPAM
+    Qualquer ajuste de marca (cor, assinatura, rodapé) muda aqui — propaga
+    automaticamente para as 4 abas de Email Marketing."""
+    return f"""<!DOCTYPE html>
+<html lang="pt-BR" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Núcleo Crédito</title>
+<!--[if mso]>
+<style type="text/css">table {{border-collapse:collapse;}}</style>
+<![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:#F1F5F9;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F1F5F9;">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center" style="max-width:600px;width:100%;background-color:#FFFFFF;border-radius:12px;overflow:hidden;">
+  <tr>
+    <td style="background-color:{NAVY};padding:28px 32px;" align="left">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="vertical-align:middle;padding-right:12px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="40" height="40" style="background-color:{GREEN};border-radius:8px;">
+              <tr><td align="center" valign="middle" style="color:#FFFFFF;font-size:20px;font-weight:bold;font-family:Arial,sans-serif;">N</td></tr>
+            </table>
+          </td>
+          <td style="vertical-align:middle;">
+            <span style="color:#FFFFFF;font-size:19px;font-weight:bold;font-family:Arial,sans-serif;">Núcleo Crédito</span><br>
+            <span style="color:#9FB8D8;font-size:11px;font-family:Arial,sans-serif;">No centro da sua vida financeira</span>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:36px 32px 8px 32px;font-family:Arial,sans-serif;">
+      <p style="margin:0 0 18px 0;font-size:16px;color:#1E293B;line-height:1.5;">Olá, <strong>{nome_destinatario}</strong>!</p>
+      <h2 style="margin:0 0 16px 0;font-size:20px;color:{NAVY};font-family:Arial,sans-serif;">{titulo}</h2>
+      {badge_html}
+      {corpo_html}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:8px 32px 32px 32px;" align="left">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="background-color:{GREEN};border-radius:8px;" align="center">
+            <a href="{cta_link}" target="_blank" style="display:inline-block;padding:13px 30px;font-size:14px;font-weight:bold;color:#FFFFFF;text-decoration:none;font-family:Arial,sans-serif;">{cta_texto}</a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr><td style="padding:0 32px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #E2E8F0;height:1px;"></td></tr></table></td></tr>
+  <tr>
+    <td style="padding:24px 32px;font-family:Arial,sans-serif;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="vertical-align:top;padding-right:14px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="48" height="48" style="background-color:#E2E8F0;border-radius:50%;">
+              <tr><td align="center" valign="middle" style="color:{NAVY};font-size:18px;font-weight:bold;font-family:Arial,sans-serif;">ES</td></tr>
+            </table>
+          </td>
+          <td style="vertical-align:top;">
+            <span style="font-size:14px;font-weight:bold;color:#1E293B;font-family:Arial,sans-serif;">Eduardo Sousa</span><br>
+            <span style="font-size:12px;color:#64748B;font-family:Arial,sans-serif;">CTO &amp; Fundador — Núcleo Crédito</span><br>
+            <span style="font-size:11px;color:#94A3B8;font-family:Arial,sans-serif;">WhatsApp (11) 95272-3015</span>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center" style="max-width:600px;width:100%;">
+  <tr>
+    <td style="padding:20px 32px;text-align:center;font-family:Arial,sans-serif;">
+      <p style="margin:0 0 6px 0;font-size:11px;color:#94A3B8;">Núcleo Crédito Soluções Financeiras — Castelo do Piauí, PI</p>
+      <p style="margin:0;font-size:11px;color:#94A3B8;">Você recebeu este email por ser cliente Núcleo Crédito. <a href="#" style="color:#64748B;text-decoration:underline;">Cancelar inscrição</a></p>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>"""
+
 def send_email(to_email, to_name, subject, html):
     try:
         import sib_api_v3_sdk
@@ -3127,7 +3223,16 @@ elif "Email" in menu:
                 env = 0
                 for _, row in dce[dce["nome"].isin(sel)].iterrows():
                     pg_d, dias_d = prox_pg(row["cpf_raw"])
-                    html = f'<div style="font-family:Inter,sans-serif;max-width:560px;margin:0 auto"><div style="background:{NAVY};padding:24px;border-radius:12px 12px 0 0"><h2 style="color:white;margin:0">⚛ Núcleo Crédito</h2></div><div style="background:white;padding:28px;border-radius:0 0 12px 12px"><p style="font-size:16px">Olá, <b>{row["nome"].split()[0]}</b>!</p><div style="background:#F0FDF4;border-radius:10px;padding:16px;text-align:center;margin:16px 0"><div style="font-size:11px;color:#16A34A;font-weight:600;text-transform:uppercase">Próximo Pagamento INSS</div><div style="font-size:28px;font-weight:800;color:{NAVY}">{pg_d.strftime("%d/%m/%Y") if pg_d else "Em breve"}</div>{f"<div style=color:#64748B;font-size:13px>Em {dias_d} dia(s)</div>" if dias_d is not None else ""}</div><a href="https://wa.me/5511952723015" style="display:inline-block;background:{GREEN};color:white;padding:12px 28px;border-radius:99px;text-decoration:none;font-weight:600">💬 Falar no WhatsApp</a></div></div>'
+                    badge_inss = f"""
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F0FDF4;border-radius:8px;margin:0 0 20px 0;">
+                    <tr><td align="center" style="padding:18px;font-family:Arial,sans-serif;">
+                    <span style="font-size:11px;color:#16A34A;font-weight:bold;text-transform:uppercase;letter-spacing:0.04em;">Próximo pagamento INSS</span><br>
+                    <span style="font-size:26px;font-weight:bold;color:{NAVY};">{pg_d.strftime("%d/%m/%Y") if pg_d else "Em breve"}</span>
+                    {f'<br><span style="font-size:12px;color:#64748B;">Em {dias_d} dia(s)</span>' if dias_d is not None else ''}
+                    </td></tr></table>"""
+                    corpo_inss = '<p style="margin:0;font-size:14px;color:#475569;line-height:1.7;font-family:Arial,sans-serif;">Confira abaixo a data do seu próximo pagamento e fale com a gente se quiser revisar sua margem disponível.</p>'
+                    html = gerar_email_master(row["nome"].split()[0], "Seu calendário INSS", corpo_inss,
+                        cta_texto="Falar no WhatsApp", badge_html=badge_inss)
                     ok_e, err_e = send_email_safe(row["email"], row["nome"], "Seu INSS — Núcleo Crédito", html)
                     if ok_e: env += 1
                 st.success(f"✅ {env} email(s) enviado(s)!")
@@ -3147,7 +3252,14 @@ elif "Email" in menu:
             if st.button("📧 Enviar Dica", use_container_width=True):
                 env2 = 0
                 for _, row in dce[dce["nome"].isin(sel2)].iterrows():
-                    html = f'<div style="font-family:Inter,sans-serif;max-width:560px;margin:0 auto"><div style="background:{NAVY};padding:24px;border-radius:12px 12px 0 0"><h2 style="color:white;margin:0">⚛ Núcleo Crédito</h2></div><div style="background:white;padding:28px;border-radius:0 0 12px 12px"><p>Olá, <b>{row["nome"].split()[0]}</b>!</p><div style="border-left:4px solid {GREEN};padding:14px 18px;background:#F8FFFE;border-radius:0 8px 8px 0;margin:16px 0"><b style="color:{NAVY}">{ds}</b><p style="color:#475569;margin-top:8px;line-height:1.6">{db}</p></div><a href="https://wa.me/5511952723015" style="background:{GREEN};color:white;padding:12px 28px;border-radius:99px;text-decoration:none;font-weight:600">💬 Tirar dúvidas</a></div></div>'
+                    corpo_dica = f"""
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F8FFFE;border-left:4px solid {GREEN};border-radius:0 8px 8px 0;margin:0 0 8px 0;">
+                    <tr><td style="padding:14px 18px;font-family:Arial,sans-serif;">
+                    <strong style="color:{NAVY};font-size:14px;">{ds}</strong>
+                    <p style="color:#475569;margin:8px 0 0 0;line-height:1.7;font-size:13px;">{db}</p>
+                    </td></tr></table>"""
+                    html = gerar_email_master(row["nome"].split()[0], "Dica financeira para você", corpo_dica,
+                        cta_texto="Tirar dúvidas no WhatsApp")
                     ok_e, err_e = send_email_safe(row["email"], row["nome"], f"💡 {ds} — Núcleo Crédito", html)
                     if ok_e: env2 += 1
                 st.success(f"✅ {env2} email(s) enviado(s)!")
@@ -3164,7 +3276,8 @@ elif "Email" in menu:
                 else:
                     env3 = 0
                     for _, row in dce[dce["nome"].isin(sel3)].iterrows():
-                        html = f'<div style="font-family:Inter,sans-serif;max-width:560px;margin:0 auto"><div style="background:{NAVY};padding:24px;border-radius:12px 12px 0 0"><h2 style="color:white;margin:0">⚛ Núcleo Crédito</h2></div><div style="background:white;padding:28px;border-radius:0 0 12px 12px"><p>Olá, <b>{row["nome"].split()[0]}</b>!</p><h3 style="color:{NAVY}">{ct3}</h3><p style="color:#475569;line-height:1.6">{cc3}</p><a href="https://wa.me/5511952723015" style="background:{GREEN};color:white;padding:12px 28px;border-radius:99px;text-decoration:none;font-weight:600">💬 WhatsApp</a></div></div>'
+                        corpo_campanha = f'<p style="margin:0;font-size:14px;color:#475569;line-height:1.7;font-family:Arial,sans-serif;">{cc3}</p>'
+                        html = gerar_email_master(row["nome"].split()[0], ct3, corpo_campanha, cta_texto="Falar no WhatsApp")
                         ok_e, err_e = send_email_safe(row["email"], row["nome"], ca3, html)
                     if ok_e: env3 += 1
                     st.success(f"✅ {env3} email(s) enviado(s)!")
@@ -3268,21 +3381,14 @@ elif "Email" in menu:
                         else:
                             env_seg = 0
                             for _, r in dce_seg.iterrows():
-                                html_seg = (
-                                    f'<div style="font-family:Inter,sans-serif;max-width:560px;margin:0 auto">'
-                                    f'<div style="background:#1B3A6B;padding:24px;border-radius:12px 12px 0 0">'
-                                    f'<h2 style="color:white;margin:0">⚛ Núcleo Crédito</h2></div>'
-                                    f'<div style="background:white;padding:28px;border-radius:0 0 12px 12px">'
-                                    f'<p>Olá, <b>{r["nome"].split()[0]}</b>!</p>'
-                                    f'<h3 style="color:#1B3A6B">{titulo_seg}</h3>'
-                                    f'<p style="color:#475569;line-height:1.6">{corpo_seg}</p>'
-                                    f'<div style="background:#F0FDF4;border-radius:10px;padding:12px 16px;margin:16px 0;font-size:12px;color:#166534">'
-                                    f'Benefício: <b>{r.get("tipo_beneficio","")}</b> · '
-                                    f'Margem disponível: <b>{fmt(r.get("margem",0))}</b></div>'
-                                    f'<a href="https://wa.me/5511952723015" style="background:#1A7A5E;color:white;'
-                                    f'padding:12px 28px;border-radius:99px;text-decoration:none;font-weight:600">'
-                                    f'💬 Falar no WhatsApp</a></div></div>'
-                                )
+                                badge_seg = f"""
+                                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F0FDF4;border-radius:8px;margin:0 0 20px 0;">
+                                <tr><td style="padding:14px 18px;font-family:Arial,sans-serif;">
+                                <span style="font-size:12px;color:#166534;">Benefício: <strong>{r.get("tipo_beneficio","")}</strong><br>Margem disponível: <strong>{fmt(r.get("margem",0))}</strong></span>
+                                </td></tr></table>"""
+                                corpo_seg_html = f'<p style="margin:0;font-size:14px;color:#475569;line-height:1.7;font-family:Arial,sans-serif;">{corpo_seg}</p>'
+                                html_seg = gerar_email_master(r["nome"].split()[0], titulo_seg, corpo_seg_html,
+                                    cta_texto="Falar no WhatsApp", badge_html=badge_seg)
                                 ok_s, _ = send_email_safe(r["email"], r["nome"], assunto_seg, html_seg)
                                 if ok_s: env_seg += 1
                             st.success(f"✅ {env_seg} email(s) enviado(s) para o segmento!")
