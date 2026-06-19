@@ -1,3 +1,4 @@
+import re
 import streamlit as st
 import os, hashlib, hmac
 from datetime import date, datetime, timedelta
@@ -949,6 +950,27 @@ def fmt(v):
     except:
         return "R$ 0,00"
 
+def buscar_cep(cep):
+    """Busca endereço via API ViaCEP — gratuita, sem chave.
+    Retorna dict com rua, bairro, cidade, uf ou None se inválido."""
+    import requests
+    cep_limpo = "".join(filter(str.isdigit, cep or ""))
+    if len(cep_limpo) != 8:
+        return None
+    try:
+        r = requests.get(f"https://viacep.com.br/ws/{cep_limpo}/json/", timeout=4)
+        d = r.json()
+        if d.get("erro"):
+            return None
+        return {
+            "rua": d.get("logradouro", ""),
+            "bairro": d.get("bairro", ""),
+            "cidade": d.get("localidade", ""),
+            "uf": d.get("uf", ""),
+        }
+    except:
+        return None
+
 def parse_valor(s):
     """Converte entrada do usuário para float.
     Aceita: 2562 / 2562,00 / 2.562,00 / 2562.00
@@ -983,6 +1005,14 @@ def input_valor(label, key, value=0.0, help_text=""):
     elif val_str and val_str not in ["", "0,00", "0"]:
         st.caption("⚠️ Formato inválido")
     return parsed
+
+def calc_comissao_projetada(margem, taxa_comissao=0.03, prazo_meses=48):
+    """Estima comissão se o cliente fechar contrato com a margem disponível.
+    taxa_comissao: % sobre o valor total do contrato (padrão 3%)"""
+    if margem <= 0:
+        return 0.0
+    valor_contrato_estimado = margem * prazo_meses
+    return round(valor_contrato_estimado * taxa_comissao, 2)
 
 def validar_cpf(cpf):
     """Valida CPF e retorna True se válido"""
@@ -1378,9 +1408,34 @@ elif "Clientes" in menu:
                 dn       = st.date_input("Data de Nascimento", value=date(1960,1,1),
                                          min_value=date(1920,1,1), max_value=date(2005,1,1),
                                          format="DD/MM/YYYY")
+
+                st.markdown("<div style='color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:8px 0 4px'>Endereço</div>", unsafe_allow_html=True)
+                cep_input = st.text_input("CEP", placeholder="00000-000", key="cep_cad",
+                    help="Digite o CEP para buscar o endereço automaticamente")
+                _end_auto = buscar_cep(cep_input) if cep_input and len(re.sub(r'\D','',cep_input))==8 else None
+                if _end_auto:
+                    st.success(f"✅ {_end_auto['rua']}, {_end_auto['bairro']} — {_end_auto['cidade']}/{_end_auto['uf']}")
+                elif cep_input and len(re.sub(r'\D','',cep_input))==8:
+                    st.warning("CEP não encontrado — preencha manualmente")
+                ce1, ce2 = st.columns(2)
+                with ce1:
+                    end_rua = st.text_input("Rua/Logradouro", value=_end_auto['rua'] if _end_auto else "")
+                    end_bairro = st.text_input("Bairro", value=_end_auto['bairro'] if _end_auto else "")
+                with ce2:
+                    end_num = st.text_input("Número", placeholder="123")
+                    end_compl = st.text_input("Complemento", placeholder="Apto, casa, etc (opcional)")
+                end_cidade_uf = f"{_end_auto['cidade']}/{_end_auto['uf']}" if _end_auto else st.text_input("Cidade/UF", placeholder="Castelo do Piauí/PI")
             with c2:
                 st.markdown("<div style='color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px'>Benefício</div>", unsafe_allow_html=True)
                 tipo_ben  = st.selectbox("Tipo de Benefício *", ['Aposentadoria por Idade (Urbana)', 'Aposentadoria por Idade da Pessoa com Deficiência', 'Aposentadoria por Idade Rural', 'Aposentadoria por Incapacidade Permanente (Urbana)', 'Aposentadoria por Incapacidade Permanente (Rural)', 'Aposentadoria por Incapacidade Permanente (Acidentária)', 'Aposentadoria por Tempo de Contribuição', 'Aposentadoria por Tempo de Contribuição da Pessoa com Deficiência', 'Aposentadoria por Tempo de Contribuição — Regra de Transição', 'Aposentadoria Especial', 'Aposentadoria Especial — Professor', 'Aposentadoria Especial — Aeronauta', 'Aposentadoria Rural — Segurado Especial', 'Aposentadoria Híbrida', 'Pensão por Morte (Urbana)', 'Pensão por Morte (Rural)', 'Pensão por Morte (Acidentária)', 'Pensão Especial — Síndrome da Talidomida', 'Pensão Especial — Síndrome Congênita do Zika Vírus', 'Auxílio por Incapacidade Temporária — Urbano (antigo Aux. Doença)', 'Auxílio por Incapacidade Temporária — Acidentário', 'Auxílio-Acidente (consignável)', 'Auxílio-Reclusão — Urbano (consignável)', 'Auxílio-Reclusão — Rural (consignável)', 'Auxílio-Inclusão', 'Salário-Maternidade — Urbano', 'Salário-Maternidade — Rural', 'Salário-Família', 'BPC/LOAS — Idoso (cartão consignado; empréstimo com restrições)', 'BPC/LOAS — Pessoa com Deficiência (cartão consignado; empréstimo com restrições)', 'Servidor Público Federal — RPPS', 'Servidor Público Estadual — RPPS', 'Servidor Público Municipal — RPPS', 'Militar das Forças Armadas', 'Policial Militar Estadual', 'Renda Mensal Vitalícia', 'Outro'])
+                tem_2_ben = st.checkbox("Possui mais de um benefício? (ex: aposentado + pensionista)",
+                    help="Cliente pode acumular benefícios, cada um com seu próprio NB")
+                tipo_ben_2 = None
+                if tem_2_ben:
+                    _tipos_completos = ["Aposentadoria por Idade (Urbana)","Aposentadoria por Idade da Pessoa com Deficiência","Aposentadoria por Idade Rural","Aposentadoria por Incapacidade Permanente (Urbana)","Aposentadoria por Incapacidade Permanente (Rural)","Aposentadoria por Incapacidade Permanente (Acidentária)","Aposentadoria por Tempo de Contribuição","Aposentadoria por Tempo de Contribuição da Pessoa com Deficiência","Aposentadoria por Tempo de Contribuição — Regra de Transição","Aposentadoria Especial","Aposentadoria Especial — Professor","Aposentadoria Especial — Aeronauta","Aposentadoria Rural — Segurado Especial","Aposentadoria Híbrida","Pensão por Morte (Urbana)","Pensão por Morte (Rural)","Pensão por Morte (Acidentária)","Pensão Especial — Síndrome da Talidomida","Pensão Especial — Síndrome Congênita do Zika Vírus","Auxílio por Incapacidade Temporária — Urbano (antigo Aux. Doença)","Auxílio por Incapacidade Temporária — Acidentário","Auxílio-Acidente (consignável)","Auxílio-Reclusão — Urbano (consignável)","Auxílio-Reclusão — Rural (consignável)","Auxílio-Inclusão","Salário-Maternidade — Urbano","Salário-Maternidade — Rural","Salário-Família","BPC/LOAS — Idoso (cartão consignado; empréstimo com restrições)","BPC/LOAS — Pessoa com Deficiência (cartão consignado; empréstimo com restrições)","Servidor Público Federal — RPPS","Servidor Público Estadual — RPPS","Servidor Público Municipal — RPPS","Militar das Forças Armadas","Policial Militar Estadual","Renda Mensal Vitalícia","Outro"]
+                    tipo_ben_2 = st.selectbox("Segundo Tipo de Benefício", _tipos_completos, key="tipo_ben_2_cad")
+                    st.caption("💡 Cada benefício tem margem consignável calculada separadamente")
+
                 _eh_bpc  = "BPC" in tipo_ben or "LOAS" in tipo_ben
                 _eh_temp = any(x in tipo_ben for x in ["Temporária","Maternidade","Família","Inclusão"])
                 if _eh_bpc:
@@ -1425,12 +1480,17 @@ elif "Clientes" in menu:
                 else:
                     obs_final = obs
                     if bloq: obs_final = f"[BENEFÍCIO BLOQUEADO — desbloqueio no Meu INSS necessário] {obs}"
+                    endereco_completo = f"{end_rua}, {end_num} {end_compl} - {end_bairro} - {end_cidade_uf} - CEP {cep_input}".strip()
+                    obs_com_ben2 = obs_final
+                    if tem_2_ben and tipo_ben_2:
+                        obs_com_ben2 = f"[2º BENEFÍCIO: {tipo_ben_2}] {obs_final}"
                     ins_cli({"nome":nome,"nome_social":nome_soc,"cpf":cpf_raw,
                         "telefone":tel_raw,"email":email,"data_nasc":str(dn),
                         "beneficio":float(ben),"parcelas":float(par),"canal":canal,
                         "status":status,"interesse":int_,"tipo_beneficio":tipo_ben,
                         "data_concessao":str(data_conc),"representante_legal":rep_legal,
-                        "observacoes":obs_final})
+                        "endereco":endereco_completo,
+                        "observacoes":obs_com_ben2})
                     st.success(f"✅ {nome} cadastrado com sucesso!")
                     st.rerun()
 
@@ -1506,6 +1566,7 @@ elif "Clientes" in menu:
                     f'<div style="font-size:10px;color:rgba(255,255,255,0.3)">Margem disponível</div>'
                     f'<div style="font-size:26px;font-weight:800;color:{borda}">{fmt(m)}</div>'
                     f'<div style="font-size:10px;color:rgba(255,255,255,0.3)">Benefício: {fmt(row["beneficio"])}</div>'
+                    f'<div style="font-size:10px;color:#4ADE80;margin-top:2px">💰 Comissão projetada: {fmt(calc_comissao_projetada(m))}</div>'
                     f'</div></div>'
                     f'<div style="margin-top:12px">'
                     f'<div style="display:flex;justify-content:space-between;font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:4px"><span>Margem comprometida</span><span>{pct_c:.0f}%</span></div>'
@@ -2014,9 +2075,9 @@ elif "Leads" in menu:
             "Convertido": "Contrato Pago", "Perdido": "Perdido"
         }).fillna("Novo Lead")
 
-    ETAPAS_FUNIL = ["Novo Lead","Em Contato","Proposta Enviada","Aguard. Retorno","Aprovado","Contrato Pago","Perdido"]
+    ETAPAS_FUNIL = ["Novo Lead","Em Contato","Proposta Enviada","Aguard. Retorno","Aprovado","Em Formalização","Contrato Pago","Perdido"]
     CORES_ETAPA  = {"Novo Lead":"#60A5FA","Em Contato":"#FBBF24","Proposta Enviada":"#C084FC",
-                    "Aguard. Retorno":"#FB923C","Aprovado":"#4ADE80","Contrato Pago":"#34D399","Perdido":"#F87171"}
+                    "Aguard. Retorno":"#FB923C","Aprovado":"#4ADE80","Em Formalização":"#22D3EE","Contrato Pago":"#34D399","Perdido":"#F87171"}
     TEMP_CORES   = {"Quente":"#EF4444","Morno":"#F59E0B","Frio":"#60A5FA"}
 
     total_leads = len(dfl) if not dfl.empty else 0
@@ -2032,10 +2093,86 @@ elif "Leads" in menu:
     with c4: kpi_html("Conversão", f"{taxa_conv}%", "total geral", "green")
     with c5: kpi_html("Pipeline", fmt(vl_pipeline), "valor estimado", "navy")
 
+    # Valor perdido no mês atual
+    if not dfl.empty:
+        mes_atual = datetime.now().month
+        ano_atual = datetime.now().year
+        perdidos_mes = dfl[(dfl["etapa"]=="Perdido")]
+        if "updated_at" in perdidos_mes.columns:
+            perdidos_mes_dt = pd.to_datetime(perdidos_mes["updated_at"], errors="coerce")
+            perdidos_mes = perdidos_mes[(perdidos_mes_dt.dt.month==mes_atual) & (perdidos_mes_dt.dt.year==ano_atual)]
+        valor_perdido_mes = perdidos_mes["valor_estimado"].sum() if not perdidos_mes.empty else 0
+
+        c6, = st.columns(1)
+        with c6:
+            st.markdown(f"""
+            <div style="background:#0D1B35;border:1px solid rgba(239,68,68,0.25);border-left:4px solid #EF4444;
+                border-radius:12px;padding:12px 16px;margin-top:8px">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div>
+                        <div style="font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase">Valor perdido este mês</div>
+                        <div style="font-size:20px;font-weight:800;color:#EF4444">{fmt(valor_perdido_mes)}</div>
+                    </div>
+                    <div style="font-size:11px;color:rgba(255,255,255,0.4);text-align:right">{len(perdidos_mes)} lead(s) perdido(s)<br>oportunidade de recuperação</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
     st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 
     # ── Tabs: Kanban | Lista | Novo Lead ───────────────────────────────────────
-    tab_kanban, tab_lista, tab_novo = st.tabs(["🗂 Kanban", "📋 Lista Completa", "＋ Novo Lead"])
+    tab_kanban, tab_lista, tab_novo, tab_reaproveitar = st.tabs(["🗂 Kanban", "📋 Lista Completa", "＋ Novo Lead", "♻️ Reaproveitar"])
+
+    with tab_reaproveitar:
+        st.markdown("""
+        <div style="background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);
+            border-radius:10px;padding:12px 16px;margin-bottom:16px">
+            <div style="color:#60A5FA;font-size:12px;font-weight:700;margin-bottom:4px">
+                ♻️ Leads perdidos que podem voltar
+            </div>
+            <div style="color:rgba(255,255,255,0.55);font-size:11px">
+                Margem pode ter mudado desde a perda (reajuste INSS, quitação de outras dívidas).
+                Revise antes de descartar definitivamente.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        perdidos_df = dfl[dfl["etapa"]=="Perdido"] if not dfl.empty else pd.DataFrame()
+
+        if perdidos_df.empty:
+            st.info("Nenhum lead perdido no momento. 🎉")
+        else:
+            # Priorizar os com motivo "Sem margem" — são os que mais mudam com reajuste
+            motivo_filtro = st.selectbox("Filtrar por motivo", ["Todos"] + sorted(perdidos_df["motivo_perda"].dropna().unique().tolist()) if "motivo_perda" in perdidos_df.columns else ["Todos"])
+            if motivo_filtro != "Todos" and "motivo_perda" in perdidos_df.columns:
+                perdidos_df = perdidos_df[perdidos_df["motivo_perda"] == motivo_filtro]
+
+            for _, lp in perdidos_df.iterrows():
+                motivo = lp.get("motivo_perda", "Não informado") or "Não informado"
+                dias_perdido = (datetime.now() - pd.to_datetime(lp.get("updated_at", datetime.now()), errors="coerce")).days
+                sugestao = ""
+                if motivo == "Sem margem disponível" and dias_perdido > 60:
+                    sugestao = "💡 Pode ter passado por reajuste INSS — vale reconferir"
+
+                rp1, rp2 = st.columns([4,1])
+                with rp1:
+                    st.markdown(f"""
+                    <div style="background:#0D1B35;border:1px solid rgba(239,68,68,0.2);border-left:3px solid #EF4444;
+                        border-radius:10px;padding:10px 14px;margin-bottom:6px">
+                        <div style="color:white;font-size:13px;font-weight:700">{lp['nome']}</div>
+                        <div style="color:rgba(255,255,255,0.4);font-size:11px">{motivo} · perdido há {dias_perdido} dias</div>
+                        {f'<div style="color:#FBBF24;font-size:11px;margin-top:4px">{sugestao}</div>' if sugestao else ''}
+                    </div>
+                    """, unsafe_allow_html=True)
+                with rp2:
+                    if st.button("Reabrir", key=f"reab_{lp['id']}", use_container_width=True):
+                        upd_lead_etapa(lp["id"], "Novo Lead", {
+                            "temperatura": "Morno",
+                            "ultimo_contato": datetime.now().isoformat(),
+                            "observacoes": f"[REABERTO {date.today().strftime('%d/%m/%Y')}] {lp.get('observacoes','')}"
+                        })
+                        st.success(f"✅ {lp['nome']} reaberto!")
+                        st.rerun()
 
     with tab_novo:
         with st.form("form_lead_novo", clear_on_submit=True):
@@ -2102,6 +2239,41 @@ elif "Leads" in menu:
             funil_html += '</div>'
             st.markdown(funil_html, unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
+
+            # ── Saúde do Funil + Tempo médio por etapa ──────────────────────
+            if not dfl_ativo.empty:
+                dfl_ativo_calc = dfl_ativo.copy()
+                dfl_ativo_calc["dias_na_etapa"] = (datetime.now() - pd.to_datetime(dfl_ativo_calc["updated_at"], errors="coerce")).dt.days.fillna(0)
+                leads_parados = len(dfl_ativo_calc[dfl_ativo_calc["dias_na_etapa"] > 2])
+                tempo_medio = dfl_ativo_calc["dias_na_etapa"].mean() if len(dfl_ativo_calc) > 0 else 0
+
+                taxa_conv_hist = (len(dfl[dfl["status"]=="Convertido"]) / max(len(dfl),1)) * 100
+                if taxa_conv_hist >= 30 and leads_parados <= 2:
+                    saude_cor, saude_txt, saude_emoji = "#4ADE80", "Saudável", "🟢"
+                elif taxa_conv_hist >= 15 or leads_parados <= 5:
+                    saude_cor, saude_txt, saude_emoji = "#FBBF24", "Atenção", "🟡"
+                else:
+                    saude_cor, saude_txt, saude_emoji = "#EF4444", "Crítico", "🔴"
+
+                st.markdown(f"""
+                <div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap">
+                    <div style="flex:1;min-width:140px;background:#0D1B35;border:1px solid {saude_cor}40;
+                        border-left:4px solid {saude_cor};border-radius:10px;padding:10px 14px">
+                        <div style="font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase">Saúde do Funil</div>
+                        <div style="font-size:15px;font-weight:800;color:{saude_cor}">{saude_emoji} {saude_txt}</div>
+                    </div>
+                    <div style="flex:1;min-width:140px;background:#0D1B35;border:1px solid rgba(255,255,255,0.1);
+                        border-radius:10px;padding:10px 14px">
+                        <div style="font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase">Tempo médio/etapa</div>
+                        <div style="font-size:15px;font-weight:800;color:white">{tempo_medio:.1f} dias</div>
+                    </div>
+                    <div style="flex:1;min-width:140px;background:#0D1B35;border:1px solid rgba(255,255,255,0.1);
+                        border-radius:10px;padding:10px 14px">
+                        <div style="font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase">Leads parados (+2d)</div>
+                        <div style="font-size:15px;font-weight:800;color:{'#EF4444' if leads_parados>3 else 'white'}">{leads_parados}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
             # Kanban por etapas (sem Perdido)
             n_cols = 4
@@ -2242,8 +2414,30 @@ elif "Leads" in menu:
                         index=ETAPAS_FUNIL.index(et) if et in ETAPAS_FUNIL else 0,
                         key=f"ls_et_{row['id']}", label_visibility="collapsed")
                     if nova_et != et:
-                        upd_lead_etapa(row["id"], nova_et, {"ultimo_contato": datetime.now().isoformat()})
-                        st.rerun()
+                        if nova_et == "Perdido":
+                            st.session_state[f"pedir_motivo_{row['id']}"] = True
+                        else:
+                            upd_lead_etapa(row["id"], nova_et, {"ultimo_contato": datetime.now().isoformat()})
+                            st.rerun()
+
+                    if st.session_state.get(f"pedir_motivo_{row['id']}"):
+                        motivo_sel = st.selectbox("Motivo da perda", [
+                            "Sem margem disponível",
+                            "Concorrência ofereceu melhor",
+                            "Desistiu / não tem mais interesse",
+                            "Não responde / sem contato",
+                            "Documentação reprovada",
+                            "Representante legal (inelegível)",
+                            "Benefício bloqueado no INSS",
+                            "Outro"
+                        ], key=f"motivo_sel_{row['id']}")
+                        if st.button("Confirmar perda", key=f"conf_perda_{row['id']}", use_container_width=True):
+                            upd_lead_etapa(row["id"], "Perdido", {
+                                "ultimo_contato": datetime.now().isoformat(),
+                                "motivo_perda": motivo_sel
+                            })
+                            st.session_state[f"pedir_motivo_{row['id']}"] = False
+                            st.rerun()
                     nova_tp = st.selectbox("Temp", ["Quente","Morno","Frio"],
                         index=["Quente","Morno","Frio"].index(temp) if temp in ["Quente","Morno","Frio"] else 2,
                         key=f"ls_tp_{row['id']}", label_visibility="collapsed")
