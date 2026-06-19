@@ -7,6 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from cryptography.fernet import Fernet
 import base64
+import st_file_uploader as stf
 
 # ── CONFIG ──────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -1515,10 +1516,18 @@ elif "Clientes" in menu:
                 obs    = st.text_area("Observações", height=80)
 
                 st.markdown("<div style='color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:10px 0 6px'>Documentos (opcional)</div>", unsafe_allow_html=True)
-                doc_rg_cad = st.file_uploader("RG / CNH", type=["pdf","jpg","jpeg","png"], key="doc_rg_cad")
-                doc_cpf_cad = st.file_uploader("CPF", type=["pdf","jpg","jpeg","png"], key="doc_cpf_cad")
-                doc_end_cad = st.file_uploader("Comprovante de Residência", type=["pdf","jpg","jpeg","png"], key="doc_end_cad")
-                doc_inss_cad = st.file_uploader("Extrato INSS / Carta de Concessão", type=["pdf","jpg","jpeg","png"], key="doc_inss_cad")
+                doc_rg_cad = stf.file_uploader("RG / CNH", type=["pdf","jpg","jpeg","png"], key="doc_rg_cad",
+                    uploader_msg="Clique ou arraste o arquivo aqui", button_msg="Selecionar arquivo",
+                    limit_msg="PDF, JPG, PNG · máx. 200MB")
+                doc_cpf_cad = stf.file_uploader("CPF", type=["pdf","jpg","jpeg","png"], key="doc_cpf_cad",
+                    uploader_msg="Clique ou arraste o arquivo aqui", button_msg="Selecionar arquivo",
+                    limit_msg="PDF, JPG, PNG · máx. 200MB")
+                doc_end_cad = stf.file_uploader("Comprovante de Residência", type=["pdf","jpg","jpeg","png"], key="doc_end_cad",
+                    uploader_msg="Clique ou arraste o arquivo aqui", button_msg="Selecionar arquivo",
+                    limit_msg="PDF, JPG, PNG · máx. 200MB")
+                doc_inss_cad = stf.file_uploader("Extrato INSS / Carta de Concessão", type=["pdf","jpg","jpeg","png"], key="doc_inss_cad",
+                    uploader_msg="Clique ou arraste o arquivo aqui", button_msg="Selecionar arquivo",
+                    limit_msg="PDF, JPG, PNG · máx. 200MB")
 
             # Validação CPF
             cpf_valido = validar_cpf(cpf_raw) if cpf_raw else True
@@ -1831,8 +1840,10 @@ elif "Clientes" in menu:
                         with dc1:
                             doc_tipo_cli = st.selectbox("Tipo", doc_tipos_cli, key=f"dtype_cli_{row['id']}")
                         with dc2:
-                            arquivo_cli = st.file_uploader("Arquivo", type=["pdf","jpg","jpeg","png"],
-                                key=f"upload_cli_{row['id']}", label_visibility="visible")
+                            arquivo_cli = stf.file_uploader("Arquivo", type=["pdf","jpg","jpeg","png"],
+                                key=f"upload_cli_{row['id']}", label_visibility="visible",
+                                uploader_msg="Clique ou arraste o arquivo aqui", button_msg="Selecionar arquivo",
+                                limit_msg="PDF, JPG, PNG · máx. 200MB")
 
                         if arquivo_cli and sb:
                             if st.button("Salvar documento", key=f"savdoc_cli_{row['id']}", use_container_width=True):
@@ -1874,18 +1885,18 @@ elif "Clientes" in menu:
 
                     doc_tipos = ["RG / CNH", "CPF", "Comprovante de Residência", "Extrato INSS / Carta de Concessão", "Contracheque / Holerite", "Proposta Assinada", "Contrato", "Outros"]
 
-                    col_up1, col_up2, col_up3 = st.columns([3,1,2])
+                    col_up1, col_up2 = st.columns([1,2])
                     with col_up1:
                         doc_tipo = st.selectbox("Tipo de documento", doc_tipos,
                             key=f"dtype_{row['id']}")
                     with col_up2:
-                        arquivo = st.file_uploader(
-                            "x", type=["pdf","jpg","jpeg","png"],
+                        arquivo = stf.file_uploader(
+                            "Arquivo", type=["pdf","jpg","jpeg","png"],
                             key=f"upload_{row['id']}",
-                            label_visibility="hidden"
+                            uploader_msg="Clique ou arraste o arquivo aqui",
+                            button_msg="Selecionar arquivo",
+                            limit_msg="PDF, JPG, PNG · máx. 200MB"
                         )
-                    with col_up3:
-                        st.markdown('<div style="padding-top:28px;font-size:11px;color:rgba(255,255,255,0.3)">← clique para anexar</div>', unsafe_allow_html=True)
 
                     if arquivo and sb:
                         if st.button("📎 Salvar documento", key=f"savdoc_{row['id']}", use_container_width=True):
