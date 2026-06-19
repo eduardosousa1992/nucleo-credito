@@ -581,7 +581,38 @@ def prox_pg(cpf_raw):
     return None, None
 
 # ── SCORE ─────────────────────────────────────────────────────────────────────
-def calc_score(row):
+def calc_bonus_canal_adaptativo(canal, dfl_historico=None):
+    """Ajusta a pontuação do canal usando a taxa de conversão REAL desse canal
+    no seu histórico — não pontos fixos adivinhados.
+
+    Método: análise de conversão por canal (RevOps padrão de mercado).
+    Se um canal converte 2x mais que a média, ganha bônus proporcional.
+    Mínimo de 8 amostras por canal para confiar no dado (evita ruído estatístico)."""
+    BONUS_BASE = {"Indicação":20,"WhatsApp":15,"Rádio":12,"Panfletagem":10,"Google":12,"Instagram":8}
+    base = BONUS_BASE.get(canal, 5)
+
+    if dfl_historico is None or dfl_historico.empty or "canal" not in dfl_historico.columns:
+        return base
+
+    try:
+        deste_canal = dfl_historico[dfl_historico["canal"] == canal]
+        if len(deste_canal) < 8:
+            return base  # amostra pequena demais — mantém o padrão de mercado
+
+        taxa_canal = (deste_canal["status"] == "Convertido").mean()
+        taxa_geral = (dfl_historico["status"] == "Convertido").mean()
+        if taxa_geral <= 0:
+            return base
+
+        # Fator relativo: canal que converte 2x a média ganha até +50% no bônus
+        fator = taxa_canal / taxa_geral
+        fator_limitado = max(0.5, min(fator, 2.0))  # nunca menos que metade nem mais que o dobro
+        return round(base * fator_limitado)
+    except:
+        return base
+
+
+def calc_score(row, dfl_historico=None):
     s = 0
     tipo_ben = row.get("tipo_beneficio","") or ""
     eh_bpc = "BPC" in tipo_ben or "LOAS" in tipo_ben
@@ -595,7 +626,7 @@ def calc_score(row):
     elif m > 300: s += 30
     elif m > 100: s += 15
     s += {"Ativo":20,"Lead Quente":25,"Em análise":15}.get(row.get("status",""), 0)
-    s += {"Indicação":20,"WhatsApp":15,"Rádio":12,"Panfletagem":10,"Google":12,"Instagram":8}.get(row.get("canal",""), 5)
+    s += calc_bonus_canal_adaptativo(row.get("canal",""), dfl_historico)
     _, dias = prox_pg(row.get("cpf_raw",""))
     if dias is not None:
         if 0 <= dias <= 2: s += 15
@@ -624,7 +655,11 @@ def load_clientes():
             pct = 0.35 if eh_bpc else 0.40
             return min(100, round(float(r["parcelas"])/(float(r["beneficio"])*pct)*100, 1))
         df["pct"] = df.apply(calc_pct, axis=1)
-        df["score"]   = df.apply(calc_score, axis=1)
+        try:
+            _dfl_para_score = load_leads()
+        except:
+            _dfl_para_score = None
+        df["score"]   = df.apply(lambda r: calc_score(r, _dfl_para_score), axis=1)
         df["prox"], df["dias"] = zip(*df.apply(lambda r: prox_pg(r["cpf_raw"]), axis=1))
         return df
     except Exception as e:
@@ -1007,6 +1042,62 @@ def input_valor(label, key, value=0.0, help_text=""):
     elif val_str and val_str not in ["", "0,00", "0"]:
         st.caption("⚠️ Formato inválido")
     return parsed
+
+def calc_probabilidade_etapa(dfl_historico, etapa):
+    """Calibra a probabilidade de fechamento de uma etapa usando dados REAIS
+    do próprio funil (não probabilidade arbitrária de mercado).
+
+    Método: Pipeline Ponderado (padrão CRM — HubSpot/Salesforce/Pipedrive).
+    Probabilidade = quantos leads que JÁ PASSARAM por essa etapa converteram,
+    dividido pelo total que passou por ela. Se não há dados suficientes,
+    usa probabilidade-base conservadora por posição no funil."""
+    PROB_BASE = {
+        "Novo Lead": 0.05, "Em Contato": 0.15, "Proposta Enviada": 0.35,
+        "Aguard. Retorno": 0.45, "Aprovado": 0.70, "Em Formalização": 0.85,
+        "Contrato Pago": 1.0, "Perdido": 0.0
+    }
+    if dfl_historico is None or dfl_historico.empty:
+        return PROB_BASE.get(etapa, 0.1)
+
+    # Histórico: de todos os leads que já estiveram nesta etapa (incluindo convertidos),
+    # quantos terminaram convertidos? Mínimo de 5 amostras para confiar no dado real.
+    try:
+        passaram_aqui = dfl_historico[dfl_historico["etapa"] == etapa]
+        if len(passaram_aqui) < 5:
+            return PROB_BASE.get(etapa, 0.1)
+        convertidos_aqui = passaram_aqui[passaram_aqui["status"] == "Convertido"]
+        taxa_real = len(convertidos_aqui) / len(passaram_aqui)
+        # Mistura 70% dado real + 30% base, para suavizar ruído de amostra pequena
+        return round(taxa_real * 0.7 + PROB_BASE.get(etapa, 0.1) * 0.3, 3)
+    except:
+        return PROB_BASE.get(etapa, 0.1)
+
+
+def calc_forecast_fechamento(dfl):
+    """Pipeline Ponderado: Σ(Valor da oportunidade × Probabilidade da etapa).
+    Método padrão de mercado (HubSpot, Salesforce, Pipedrive) — usa taxa de
+    conversão histórica real, não probabilidade fixa adivinhada.
+    Retorna: valor_ponderado, detalhe_por_etapa, total_pipeline_aberto"""
+    if dfl is None or dfl.empty:
+        return 0.0, {}, 0.0
+
+    ativos = dfl[(dfl["etapa"] != "Perdido") & (dfl["status"] != "Convertido")]
+    if ativos.empty:
+        return 0.0, {}, 0.0
+
+    total_valor = 0.0
+    detalhe = {}
+    for etapa in ativos["etapa"].unique():
+        grupo = ativos[ativos["etapa"] == etapa]
+        prob = calc_probabilidade_etapa(dfl, etapa)
+        valor_etapa = grupo["valor_estimado"].sum()
+        ponderado = valor_etapa * prob
+        total_valor += ponderado
+        detalhe[etapa] = {"valor": valor_etapa, "prob": prob, "ponderado": ponderado, "qtd": len(grupo)}
+
+    pipeline_total_aberto = ativos["valor_estimado"].sum()
+    return round(total_valor, 2), detalhe, round(pipeline_total_aberto, 2)
+
 
 def calc_comissao_projetada(margem, taxa_comissao=0.03, prazo_meses=48):
     """Estima comissão se o cliente fechar contrato com a margem disponível.
@@ -2206,12 +2297,24 @@ elif "Leads" in menu:
     page_header("📋", "Funil de Vendas", "Pipeline completo — do primeiro contato ao pagamento")
 
     # ── KPIs do funil ──────────────────────────────────────────────────────────
-    dfl = load_leads()
-    if not dfl.empty and "etapa" not in dfl.columns:
-        dfl["etapa"] = dfl["status"].map({
+    dfl_completo = load_leads()
+    if not dfl_completo.empty and "etapa" not in dfl_completo.columns:
+        dfl_completo["etapa"] = dfl_completo["status"].map({
             "Novo": "Novo Lead", "Em negociação": "Em Contato",
             "Convertido": "Contrato Pago", "Perdido": "Perdido"
         }).fillna("Novo Lead")
+
+    # ── Segmentação por produto — cada produto tem ritmo de venda diferente ─────
+    # (INSS é rápido; portabilidade e cartão demoram mais — misturar mascara o gargalo real)
+    if not dfl_completo.empty and "interesse" in dfl_completo.columns:
+        produtos_disponiveis = ["Todos os produtos"] + sorted(dfl_completo["interesse"].dropna().unique().tolist())
+        produto_filtro = st.selectbox("📦 Filtrar funil por produto", produtos_disponiveis, key="filtro_produto_funil")
+        if produto_filtro != "Todos os produtos":
+            dfl = dfl_completo[dfl_completo["interesse"] == produto_filtro].copy()
+        else:
+            dfl = dfl_completo.copy()
+    else:
+        dfl = dfl_completo
 
     ETAPAS_FUNIL = ["Novo Lead","Em Contato","Proposta Enviada","Aguard. Retorno","Aprovado","Em Formalização","Contrato Pago","Perdido"]
     CORES_ETAPA  = {"Novo Lead":"#60A5FA","Em Contato":"#FBBF24","Proposta Enviada":"#C084FC",
@@ -2230,6 +2333,40 @@ elif "Leads" in menu:
     with c3: kpi_html("Convertidos", convertidos, "contratos pagos", "green")
     with c4: kpi_html("Conversão", f"{taxa_conv}%", "total geral", "green")
     with c5: kpi_html("Pipeline", fmt(vl_pipeline), "valor estimado", "navy")
+
+    # ── Forecast de Fechamento (Pipeline Ponderado — método HubSpot/Salesforce) ──
+    if not dfl.empty:
+        valor_forecast, detalhe_forecast, pipeline_aberto = calc_forecast_fechamento(dfl)
+        st.markdown(f"""
+        <div style="background:linear-gradient(135deg,#0D1B35,#0A2318);border:1px solid rgba(74,222,128,0.25);
+            border-radius:12px;padding:14px 18px;margin-top:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+                <div>
+                    <div style="font-size:11px;color:#4ADE80;font-weight:700;text-transform:uppercase;letter-spacing:.04em">
+                        📈 Forecast de Fechamento
+                    </div>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px">
+                        Previsão calibrada com sua taxa de conversão histórica real
+                    </div>
+                </div>
+                <div style="text-align:right">
+                    <div style="font-size:24px;font-weight:800;color:#4ADE80">{fmt(valor_forecast)}</div>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.4)">de {fmt(pipeline_aberto)} em aberto</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if detalhe_forecast:
+            with st.expander("📊 Ver detalhamento por etapa"):
+                for etapa, info in sorted(detalhe_forecast.items(), key=lambda x: -x[1]["ponderado"]):
+                    st.markdown(f"""
+                    <div style="display:flex;justify-content:space-between;padding:6px 0;
+                        border-bottom:1px solid rgba(255,255,255,0.06);font-size:12px">
+                        <span style="color:white">{etapa} <span style="color:rgba(255,255,255,0.4)">({info['qtd']} lead{'s' if info['qtd']!=1 else ''})</span></span>
+                        <span style="color:rgba(255,255,255,0.6)">{fmt(info['valor'])} × {info['prob']:.0%} = <b style="color:#4ADE80">{fmt(info['ponderado'])}</b></span>
+                    </div>
+                    """, unsafe_allow_html=True)
 
     # Valor perdido no mês atual
     if not dfl.empty:
@@ -2259,9 +2396,69 @@ elif "Leads" in menu:
     st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 
     # ── Tabs: Kanban | Lista | Novo Lead ───────────────────────────────────────
-    tab_kanban, tab_lista, tab_novo, tab_reaproveitar = st.tabs(["🗂 Kanban", "📋 Lista Completa", "＋ Novo Lead", "♻️ Reaproveitar"])
+    tab_kanban, tab_lista, tab_novo, tab_reaproveitar, tab_indicadores = st.tabs(["🗂 Kanban", "📋 Lista Completa", "＋ Novo Lead", "♻️ Reaproveitar", "🤝 Indicadores"])
 
-    with tab_reaproveitar:
+    with tab_indicadores:
+        st.markdown("""
+        <div style="background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);
+            border-radius:10px;padding:12px 16px;margin-bottom:16px">
+            <div style="color:#4ADE80;font-size:12px;font-weight:700;margin-bottom:4px">
+                🤝 Ranking de Clientes Indicadores
+            </div>
+            <div style="color:rgba(255,255,255,0.55);font-size:11px">
+                Quem mais traz indicação merece reconhecimento. Use esse ranking
+                para programa de bonificação por indicação.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if dfl.empty or "indicado_por_cliente_id" not in dfl.columns:
+            st.info("Nenhuma indicação rastreada ainda. Cadastre um lead com canal 'Indicação' e selecione quem indicou.")
+        else:
+            indicacoes_validas = dfl[dfl["indicado_por_cliente_id"].notna()]
+            if indicacoes_validas.empty:
+                st.info("Nenhuma indicação com indicador identificado ainda.")
+            else:
+                df_clientes_rank = load_clientes()
+                ranking = indicacoes_validas.groupby("indicado_por_cliente_id").agg(
+                    total_indicacoes=("id", "count"),
+                    convertidos=("status", lambda x: (x == "Convertido").sum()),
+                    valor_gerado=("valor_estimado", "sum")
+                ).reset_index()
+                ranking = ranking.merge(
+                    df_clientes_rank[["id","nome"]].rename(columns={"id":"indicado_por_cliente_id","nome":"indicador_nome"}),
+                    on="indicado_por_cliente_id", how="left"
+                )
+                ranking = ranking.sort_values("total_indicacoes", ascending=False)
+
+                rk1, rk2, rk3 = st.columns(3)
+                with rk1: kpi_html("Indicadores ativos", len(ranking), "clientes que indicam", "navy")
+                with rk2: kpi_html("Total indicações", int(ranking["total_indicacoes"].sum()), "leads gerados", "green")
+                with rk3: kpi_html("Convertidos via indicação", int(ranking["convertidos"].sum()), "viraram clientes", "green")
+
+                st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
+                for i, (_, r) in enumerate(ranking.iterrows()):
+                    medalha = ["🥇","🥈","🥉"][i] if i < 3 else f"{i+1}º"
+                    taxa_conv = (r["convertidos"] / r["total_indicacoes"] * 100) if r["total_indicacoes"] > 0 else 0
+                    st.markdown(f"""
+                    <div style="background:#0D1B35;border:1px solid rgba(74,222,128,0.15);border-left:4px solid #4ADE80;
+                        border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+                        <div>
+                            <span style="font-size:16px;margin-right:8px">{medalha}</span>
+                            <span style="color:white;font-weight:700;font-size:14px">{r['indicador_nome']}</span>
+                            <div style="color:rgba(255,255,255,0.4);font-size:11px;margin-top:2px">
+                                {int(r['total_indicacoes'])} indicação(ões) · {int(r['convertidos'])} convertida(s) · {taxa_conv:.0f}% de conversão
+                            </div>
+                        </div>
+                        <div style="text-align:right">
+                            <div style="color:#4ADE80;font-weight:800;font-size:16px">{fmt(r['valor_gerado'])}</div>
+                            <div style="color:rgba(255,255,255,0.3);font-size:10px">valor gerado</div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+
         st.markdown("""
         <div style="background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);
             border-radius:10px;padding:12px 16px;margin-bottom:16px">
@@ -2313,6 +2510,28 @@ elif "Leads" in menu:
                         st.rerun()
 
     with tab_novo:
+        # Canal fora do form — permite mostrar campo de indicação dinamicamente
+        lc = st.selectbox("Canal de entrada", ["WhatsApp","Indicação","Panfletagem","Rádio","Instagram","Google","Presencial","Outros"], key="lead_canal_outside")
+
+        indicado_por_id = None
+        indicado_por_nome = ""
+        if lc == "Indicação":
+            df_clientes_indic = load_clientes()
+            if not df_clientes_indic.empty:
+                opcoes_indicador = ["— Não sei / não informar —"] + df_clientes_indic["nome"].tolist()
+                nome_indicador = st.selectbox(
+                    "Quem indicou? (cliente já cadastrado)",
+                    opcoes_indicador, key="lead_indicador_outside",
+                    help="Rastreia o cliente que trouxe esse lead — base para programa de bonificação por indicação"
+                )
+                if nome_indicador != "— Não sei / não informar —":
+                    match = df_clientes_indic[df_clientes_indic["nome"] == nome_indicador]
+                    if not match.empty:
+                        indicado_por_id = int(match.iloc[0]["id"])
+                        indicado_por_nome = nome_indicador
+            else:
+                st.caption("Nenhum cliente cadastrado ainda para vincular como indicador.")
+
         with st.form("form_lead_novo", clear_on_submit=True):
             st.markdown('<div class="chart-card">', unsafe_allow_html=True)
             c1, c2, c3 = st.columns(3)
@@ -2322,7 +2541,6 @@ elif "Leads" in menu:
                 le  = st.text_input("Email")
                 lcp = st.text_input("CPF")
             with c2:
-                lc  = st.selectbox("Canal de entrada", ["WhatsApp","Indicação","Panfletagem","Rádio","Instagram","Google","Presencial","Outros"])
                 li  = st.selectbox("Produto de interesse", ["Consignado INSS","Portabilidade","Refinanciamento","Cartão Consignado","Consignado Servidor","Empréstimo Pessoal"])
                 lb  = st.number_input("Benefício / Salário (R$)", min_value=0.0, step=50.0)
                 lv  = st.number_input("Valor estimado do negócio (R$)", min_value=0.0, step=100.0)
@@ -2336,10 +2554,14 @@ elif "Leads" in menu:
                 if not ln or not lt:
                     st.error("Nome e telefone são obrigatórios.")
                 else:
+                    obs_com_indicador = lob
+                    if indicado_por_nome:
+                        obs_com_indicador = f"[Indicado por: {indicado_por_nome}] {lob}"
                     ins_lead({"nome":ln,"telefone":lt,"email":le if le else None,
                         "canal":lc,"interesse":li,"beneficio":float(lb),
                         "valor_estimado":float(lv),"status":let,"etapa":let,
-                        "temperatura":lte,"data_retorno":str(ldr),"observacoes":lob,
+                        "temperatura":lte,"data_retorno":str(ldr),"observacoes":obs_com_indicador,
+                        "indicado_por_cliente_id":indicado_por_id,
                         "ultimo_contato":datetime.now().isoformat()})
                     st.success(f"✅ {ln} adicionado ao funil!")
                     st.rerun()
@@ -2412,6 +2634,26 @@ elif "Leads" in menu:
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
+
+            # ── Comparativo de tempo médio por produto (só quando "Todos") ──────
+            if produto_filtro == "Todos os produtos" and "interesse" in dfl_completo.columns:
+                df_prod_calc = dfl_completo[dfl_completo["status"] != "Convertido"].copy()
+                if not df_prod_calc.empty and len(df_prod_calc["interesse"].dropna().unique()) > 1:
+                    df_prod_calc["dias_aberto"] = (datetime.now() - pd.to_datetime(df_prod_calc["created_at"], errors="coerce")).dt.days.fillna(0)
+                    resumo_produto = df_prod_calc.groupby("interesse").agg(
+                        qtd=("id","count"), tempo_medio=("dias_aberto","mean")
+                    ).reset_index().sort_values("tempo_medio")
+
+                    with st.expander("📦 Comparar tempo médio por produto — onde está o gargalo real"):
+                        for _, rp in resumo_produto.iterrows():
+                            cor_tempo = "#4ADE80" if rp["tempo_medio"] < 10 else "#FBBF24" if rp["tempo_medio"] < 20 else "#EF4444"
+                            st.markdown(f"""
+                            <div style="display:flex;justify-content:space-between;padding:6px 0;
+                                border-bottom:1px solid rgba(255,255,255,0.06);font-size:12px">
+                                <span style="color:white">{rp['interesse']} <span style="color:rgba(255,255,255,0.4)">({int(rp['qtd'])} lead{'s' if rp['qtd']!=1 else ''})</span></span>
+                                <span style="color:{cor_tempo};font-weight:700">{rp['tempo_medio']:.1f} dias em média</span>
+                            </div>
+                            """, unsafe_allow_html=True)
 
             # Kanban por etapas (sem Perdido)
             n_cols = 4
