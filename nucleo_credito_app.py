@@ -667,7 +667,8 @@ def load_fu():
 def ins_cli(d):
     d["cpf"] = enc(d.get("cpf", ""))
     d["telefone"] = enc(d.get("telefone", ""))
-    sb.table("clientes").insert(d).execute()
+    result = sb.table("clientes").insert(d).execute()
+    return result.data[0]["id"] if result.data else None
 
 def upd_cli(id, d):
     """Atualiza dados do cliente — edição completa"""
@@ -1394,8 +1395,22 @@ elif "Clientes" in menu:
     if st.button("＋ Cadastrar Novo Cliente", key="btn_new_cli"):
         st.session_state["show_form_cli"] = not st.session_state.get("show_form_cli", False)
     if st.session_state.get("show_form_cli", False):
-        tem_2_ben = st.checkbox("Possui mais de um benefício? (ex: aposentado + pensionista)",
-            help="Cliente pode acumular benefícios, cada um com seu próprio NB", key="tem_2_ben_outside")
+        cc_out1, cc_out2 = st.columns(2)
+        with cc_out1:
+            tem_2_ben = st.checkbox("Possui mais de um benefício? (ex: aposentado + pensionista)",
+                help="Cliente pode acumular benefícios, cada um com seu próprio NB", key="tem_2_ben_outside")
+        with cc_out2:
+            cep_input = st.text_input("CEP * (digite para buscar o endereço)", placeholder="00000-000", key="cep_cad_outside",
+                help="Digite o CEP completo (8 números) — o endereço preenche automaticamente abaixo")
+
+        _cep_digits = re.sub(r'\D','',cep_input or "")
+        _end_auto = buscar_cep(cep_input) if len(_cep_digits)==8 else None
+        if _end_auto:
+            st.success(f"✅ CEP localizado: {_end_auto['rua']}, {_end_auto['bairro']} — {_end_auto['cidade']}/{_end_auto['uf']}")
+        elif len(_cep_digits)==8:
+            st.warning("CEP não encontrado na base — preencha o endereço manualmente abaixo")
+        elif cep_input:
+            st.caption(f"Digite os 8 números do CEP ({len(_cep_digits)}/8)")
 
         with st.form("form_cli", clear_on_submit=True):
             c1, c2, c3 = st.columns(3)
@@ -1413,17 +1428,6 @@ elif "Clientes" in menu:
                                          format="DD/MM/YYYY")
 
                 st.markdown("<div style='color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:8px 0 4px'>Endereço</div>", unsafe_allow_html=True)
-                cep_input = st.text_input("CEP *", placeholder="00000-000", key="cep_cad",
-                    help="Digite o CEP completo (8 números) e os campos abaixo preenchem automaticamente")
-                _cep_digits = re.sub(r'\D','',cep_input or "")
-                _end_auto = buscar_cep(cep_input) if len(_cep_digits)==8 else None
-                if _end_auto:
-                    st.success(f"✅ CEP {cep_input} localizado")
-                elif len(_cep_digits)==8:
-                    st.warning("CEP não encontrado na base — preencha o endereço manualmente abaixo")
-                elif cep_input:
-                    st.caption(f"Digite os 8 números do CEP ({len(_cep_digits)}/8)")
-
                 ce1, ce2 = st.columns(2)
                 with ce1:
                     end_rua = st.text_input("Rua/Logradouro",
@@ -1485,7 +1489,13 @@ elif "Clientes" in menu:
                 canal  = st.selectbox("Canal de Entrada", ["Indicação","WhatsApp","Panfletagem","Rádio","Instagram","Google","Presencial","Outros"])
                 int_   = st.selectbox("Produto de Interesse", ["Consignado INSS","Portabilidade","Refinanciamento","Cartão Consignado","Consignado Servidor","Desenrola Brasil","Empréstimo Pessoal"])
                 status = st.selectbox("Status", ["Lead Quente","Em análise","Ativo"])
-                obs    = st.text_area("Observações", height=120)
+                obs    = st.text_area("Observações", height=80)
+
+                st.markdown("<div style='color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:10px 0 6px'>Documentos (opcional)</div>", unsafe_allow_html=True)
+                doc_rg_cad = st.file_uploader("RG / CNH", type=["pdf","jpg","jpeg","png"], key="doc_rg_cad")
+                doc_cpf_cad = st.file_uploader("CPF", type=["pdf","jpg","jpeg","png"], key="doc_cpf_cad")
+                doc_end_cad = st.file_uploader("Comprovante de Residência", type=["pdf","jpg","jpeg","png"], key="doc_end_cad")
+                doc_inss_cad = st.file_uploader("Extrato INSS / Carta de Concessão", type=["pdf","jpg","jpeg","png"], key="doc_inss_cad")
 
             # Validação CPF
             cpf_valido = validar_cpf(cpf_raw) if cpf_raw else True
@@ -1506,14 +1516,36 @@ elif "Clientes" in menu:
                     obs_com_ben2 = obs_final
                     if tem_2_ben and tipo_ben_2:
                         obs_com_ben2 = f"[2º BENEFÍCIO: {tipo_ben_2} | NB: {nb_secundario} | Valor: {fmt(ben2_valor)}] {obs_final}"
-                    ins_cli({"nome":nome,"nome_social":nome_soc,"cpf":cpf_raw,
+                    novo_cliente_id = ins_cli({"nome":nome,"nome_social":nome_soc,"cpf":cpf_raw,
                         "telefone":tel_raw,"email":email,"data_nasc":str(dn),
                         "beneficio":float(ben),"parcelas":float(par),"canal":canal,
                         "status":status,"interesse":int_,"tipo_beneficio":tipo_ben,
                         "data_concessao":str(data_conc),"representante_legal":rep_legal,
                         "endereco":endereco_completo,"numero_beneficio":nb_principal,
                         "observacoes":obs_com_ben2})
-                    st.success(f"✅ {nome} cadastrado com sucesso!")
+
+                    # Upload dos documentos selecionados, vinculados ao novo cliente
+                    docs_enviados = 0
+                    if novo_cliente_id and sb:
+                        docs_para_subir = [
+                            ("RG_CNH", doc_rg_cad),
+                            ("CPF", doc_cpf_cad),
+                            ("Comprovante_Residencia", doc_end_cad),
+                            ("Extrato_INSS", doc_inss_cad),
+                        ]
+                        for tipo_doc, arq in docs_para_subir:
+                            if arq is not None:
+                                try:
+                                    caminho = f"clientes/{novo_cliente_id}/{tipo_doc}_{arq.name}"
+                                    sb.storage.from_("documentos").upload(
+                                        path=caminho, file=arq.getvalue(),
+                                        file_options={"content-type": arq.type, "upsert": "true"}
+                                    )
+                                    docs_enviados += 1
+                                except: pass
+
+                    msg_doc = f" + {docs_enviados} documento(s) anexado(s)" if docs_enviados else ""
+                    st.success(f"✅ {nome} cadastrado com sucesso!{msg_doc}")
                     st.rerun()
 
     df = load_clientes()
