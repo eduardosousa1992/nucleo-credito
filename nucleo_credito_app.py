@@ -1410,21 +1410,37 @@ elif "Clientes" in menu:
                                          format="DD/MM/YYYY")
 
                 st.markdown("<div style='color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:8px 0 4px'>Endereço</div>", unsafe_allow_html=True)
-                cep_input = st.text_input("CEP", placeholder="00000-000", key="cep_cad",
-                    help="Digite o CEP para buscar o endereço automaticamente")
-                _end_auto = buscar_cep(cep_input) if cep_input and len(re.sub(r'\D','',cep_input))==8 else None
+                cep_input = st.text_input("CEP *", placeholder="00000-000", key="cep_cad",
+                    help="Digite o CEP completo (8 números) e os campos abaixo preenchem automaticamente")
+                _cep_digits = re.sub(r'\D','',cep_input or "")
+                _end_auto = buscar_cep(cep_input) if len(_cep_digits)==8 else None
                 if _end_auto:
-                    st.success(f"✅ {_end_auto['rua']}, {_end_auto['bairro']} — {_end_auto['cidade']}/{_end_auto['uf']}")
-                elif cep_input and len(re.sub(r'\D','',cep_input))==8:
-                    st.warning("CEP não encontrado — preencha manualmente")
+                    st.success(f"✅ CEP {cep_input} localizado")
+                elif len(_cep_digits)==8:
+                    st.warning("CEP não encontrado na base — preencha o endereço manualmente abaixo")
+                elif cep_input:
+                    st.caption(f"Digite os 8 números do CEP ({len(_cep_digits)}/8)")
+
                 ce1, ce2 = st.columns(2)
                 with ce1:
-                    end_rua = st.text_input("Rua/Logradouro", value=_end_auto['rua'] if _end_auto else "")
-                    end_bairro = st.text_input("Bairro", value=_end_auto['bairro'] if _end_auto else "")
+                    end_rua = st.text_input("Rua/Logradouro",
+                        value=_end_auto['rua'] if _end_auto else "", key="end_rua_cad")
+                    end_bairro = st.text_input("Bairro",
+                        value=_end_auto['bairro'] if _end_auto else "", key="end_bairro_cad")
+                    end_cidade = st.text_input("Cidade",
+                        value=_end_auto['cidade'] if _end_auto else "", key="end_cidade_cad")
                 with ce2:
-                    end_num = st.text_input("Número", placeholder="123")
-                    end_compl = st.text_input("Complemento", placeholder="Apto, casa, etc (opcional)")
-                end_cidade_uf = f"{_end_auto['cidade']}/{_end_auto['uf']}" if _end_auto else st.text_input("Cidade/UF", placeholder="Castelo do Piauí/PI")
+                    end_num = st.text_input("Número", placeholder="123", key="end_num_cad")
+                    end_compl = st.text_input("Complemento", placeholder="Apto, casa (opcional)", key="end_compl_cad")
+                    end_uf = st.text_input("UF",
+                        value=_end_auto['uf'] if _end_auto else "", max_chars=2, key="end_uf_cad")
+                end_cidade_uf = f"{end_cidade}/{end_uf}"
+
+                st.markdown("<div style='color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:12px 0 4px'>Número do Benefício (NB)</div>", unsafe_allow_html=True)
+                nb1, nb2 = st.columns(2)
+                with nb1:
+                    nb_principal = st.text_input("NB Principal *", placeholder="000.000.000-0",
+                        help="Número do Benefício no INSS — identificador único")
             with c2:
                 st.markdown("<div style='color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px'>Benefício</div>", unsafe_allow_html=True)
                 tipo_ben  = st.selectbox("Tipo de Benefício *", ['Aposentadoria por Idade (Urbana)', 'Aposentadoria por Idade da Pessoa com Deficiência', 'Aposentadoria por Idade Rural', 'Aposentadoria por Incapacidade Permanente (Urbana)', 'Aposentadoria por Incapacidade Permanente (Rural)', 'Aposentadoria por Incapacidade Permanente (Acidentária)', 'Aposentadoria por Tempo de Contribuição', 'Aposentadoria por Tempo de Contribuição da Pessoa com Deficiência', 'Aposentadoria por Tempo de Contribuição — Regra de Transição', 'Aposentadoria Especial', 'Aposentadoria Especial — Professor', 'Aposentadoria Especial — Aeronauta', 'Aposentadoria Rural — Segurado Especial', 'Aposentadoria Híbrida', 'Pensão por Morte (Urbana)', 'Pensão por Morte (Rural)', 'Pensão por Morte (Acidentária)', 'Pensão Especial — Síndrome da Talidomida', 'Pensão Especial — Síndrome Congênita do Zika Vírus', 'Auxílio por Incapacidade Temporária — Urbano (antigo Aux. Doença)', 'Auxílio por Incapacidade Temporária — Acidentário', 'Auxílio-Acidente (consignável)', 'Auxílio-Reclusão — Urbano (consignável)', 'Auxílio-Reclusão — Rural (consignável)', 'Auxílio-Inclusão', 'Salário-Maternidade — Urbano', 'Salário-Maternidade — Rural', 'Salário-Família', 'BPC/LOAS — Idoso (cartão consignado; empréstimo com restrições)', 'BPC/LOAS — Pessoa com Deficiência (cartão consignado; empréstimo com restrições)', 'Servidor Público Federal — RPPS', 'Servidor Público Estadual — RPPS', 'Servidor Público Municipal — RPPS', 'Militar das Forças Armadas', 'Policial Militar Estadual', 'Renda Mensal Vitalícia', 'Outro'])
@@ -1434,7 +1450,12 @@ elif "Clientes" in menu:
                 if tem_2_ben:
                     _tipos_completos = ["Aposentadoria por Idade (Urbana)","Aposentadoria por Idade da Pessoa com Deficiência","Aposentadoria por Idade Rural","Aposentadoria por Incapacidade Permanente (Urbana)","Aposentadoria por Incapacidade Permanente (Rural)","Aposentadoria por Incapacidade Permanente (Acidentária)","Aposentadoria por Tempo de Contribuição","Aposentadoria por Tempo de Contribuição da Pessoa com Deficiência","Aposentadoria por Tempo de Contribuição — Regra de Transição","Aposentadoria Especial","Aposentadoria Especial — Professor","Aposentadoria Especial — Aeronauta","Aposentadoria Rural — Segurado Especial","Aposentadoria Híbrida","Pensão por Morte (Urbana)","Pensão por Morte (Rural)","Pensão por Morte (Acidentária)","Pensão Especial — Síndrome da Talidomida","Pensão Especial — Síndrome Congênita do Zika Vírus","Auxílio por Incapacidade Temporária — Urbano (antigo Aux. Doença)","Auxílio por Incapacidade Temporária — Acidentário","Auxílio-Acidente (consignável)","Auxílio-Reclusão — Urbano (consignável)","Auxílio-Reclusão — Rural (consignável)","Auxílio-Inclusão","Salário-Maternidade — Urbano","Salário-Maternidade — Rural","Salário-Família","BPC/LOAS — Idoso (cartão consignado; empréstimo com restrições)","BPC/LOAS — Pessoa com Deficiência (cartão consignado; empréstimo com restrições)","Servidor Público Federal — RPPS","Servidor Público Estadual — RPPS","Servidor Público Municipal — RPPS","Militar das Forças Armadas","Policial Militar Estadual","Renda Mensal Vitalícia","Outro"]
                     tipo_ben_2 = st.selectbox("Segundo Tipo de Benefício", _tipos_completos, key="tipo_ben_2_cad")
+                    nb_secundario = st.text_input("NB do 2º Benefício", placeholder="000.000.000-0", key="nb2_cad")
+                    ben2_valor = st.number_input("Valor do 2º Benefício (R$)", min_value=0.0, step=50.0, key="ben2_val_cad")
                     st.caption("💡 Cada benefício tem margem consignável calculada separadamente")
+                else:
+                    nb_secundario = ""
+                    ben2_valor = 0.0
 
                 _eh_bpc  = "BPC" in tipo_ben or "LOAS" in tipo_ben
                 _eh_temp = any(x in tipo_ben for x in ["Temporária","Maternidade","Família","Inclusão"])
@@ -1483,13 +1504,13 @@ elif "Clientes" in menu:
                     endereco_completo = f"{end_rua}, {end_num} {end_compl} - {end_bairro} - {end_cidade_uf} - CEP {cep_input}".strip()
                     obs_com_ben2 = obs_final
                     if tem_2_ben and tipo_ben_2:
-                        obs_com_ben2 = f"[2º BENEFÍCIO: {tipo_ben_2}] {obs_final}"
+                        obs_com_ben2 = f"[2º BENEFÍCIO: {tipo_ben_2} | NB: {nb_secundario} | Valor: {fmt(ben2_valor)}] {obs_final}"
                     ins_cli({"nome":nome,"nome_social":nome_soc,"cpf":cpf_raw,
                         "telefone":tel_raw,"email":email,"data_nasc":str(dn),
                         "beneficio":float(ben),"parcelas":float(par),"canal":canal,
                         "status":status,"interesse":int_,"tipo_beneficio":tipo_ben,
                         "data_concessao":str(data_conc),"representante_legal":rep_legal,
-                        "endereco":endereco_completo,
+                        "endereco":endereco_completo,"numero_beneficio":nb_principal,
                         "observacoes":obs_com_ben2})
                     st.success(f"✅ {nome} cadastrado com sucesso!")
                     st.rerun()
@@ -1735,6 +1756,51 @@ elif "Clientes" in menu:
                                 st.session_state[f"edit_cli_{row['id']}"] = False
                                 st.rerun()
 
+                        st.markdown('</div>', unsafe_allow_html=True)
+
+                    # ── Upload de documentos direto na tela de Clientes ──────────
+                    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+                    if st.button("📎 Documentos do cliente", key=f"doc_btn_{row['id']}"):
+                        st.session_state[f"show_docs_{row['id']}"] = not st.session_state.get(f"show_docs_{row['id']}", False)
+
+                    if st.session_state.get(f"show_docs_{row['id']}", False):
+                        st.markdown('<div style="background:#0D1B35;border:1px solid rgba(96,165,250,0.2);border-radius:12px;padding:14px 16px;margin-top:6px">', unsafe_allow_html=True)
+                        doc_tipos_cli = ["RG / CNH", "CPF", "Comprovante de Residência", "Extrato INSS / Carta de Concessão", "Contracheque / Holerite", "Proposta Assinada", "Contrato", "Outros"]
+                        dc1, dc2 = st.columns([1,2])
+                        with dc1:
+                            doc_tipo_cli = st.selectbox("Tipo", doc_tipos_cli, key=f"dtype_cli_{row['id']}")
+                        with dc2:
+                            arquivo_cli = st.file_uploader("Arquivo", type=["pdf","jpg","jpeg","png"],
+                                key=f"upload_cli_{row['id']}", label_visibility="visible")
+
+                        if arquivo_cli and sb:
+                            if st.button("Salvar documento", key=f"savdoc_cli_{row['id']}", use_container_width=True):
+                                try:
+                                    nome_arq_cli = f"clientes/{row['id']}/{doc_tipo_cli.replace(' ','_').replace('/','_')}_{arquivo_cli.name}"
+                                    sb.storage.from_("documentos").upload(
+                                        path=nome_arq_cli, file=arquivo_cli.getvalue(),
+                                        file_options={"content-type": arquivo_cli.type, "upsert": "true"}
+                                    )
+                                    st.success(f"✅ {doc_tipo_cli} salvo!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro: {e}")
+
+                        if sb:
+                            try:
+                                pasta_cli = f"clientes/{row['id']}"
+                                docs_cli = sb.storage.from_("documentos").list(pasta_cli)
+                                if docs_cli:
+                                    for doc_c in docs_cli:
+                                        nome_doc_c = doc_c.get('name','')
+                                        if not nome_doc_c: continue
+                                        caminho_c = f"{pasta_cli}/{nome_doc_c}"
+                                        url_c = sb.storage.from_("documentos").get_public_url(caminho_c)
+                                        st.markdown(f'<a href="{url_c}" target="_blank" style="display:block;color:#60A5FA;font-size:12px;padding:6px 0;text-decoration:none">📄 {nome_doc_c}</a>', unsafe_allow_html=True)
+                                else:
+                                    st.caption("Nenhum documento enviado ainda.")
+                            except:
+                                st.caption("Bucket de documentos não configurado.")
                         st.markdown('</div>', unsafe_allow_html=True)
 
                     if st.button(f"🗑 Remover cliente", key=f"del_{row['id']}"):
