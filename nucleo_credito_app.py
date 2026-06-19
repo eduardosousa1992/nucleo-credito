@@ -1394,6 +1394,9 @@ elif "Clientes" in menu:
     if st.button("＋ Cadastrar Novo Cliente", key="btn_new_cli"):
         st.session_state["show_form_cli"] = not st.session_state.get("show_form_cli", False)
     if st.session_state.get("show_form_cli", False):
+        tem_2_ben = st.checkbox("Possui mais de um benefício? (ex: aposentado + pensionista)",
+            help="Cliente pode acumular benefícios, cada um com seu próprio NB", key="tem_2_ben_outside")
+
         with st.form("form_cli", clear_on_submit=True):
             c1, c2, c3 = st.columns(3)
             with c1:
@@ -1444,8 +1447,6 @@ elif "Clientes" in menu:
             with c2:
                 st.markdown("<div style='color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px'>Benefício</div>", unsafe_allow_html=True)
                 tipo_ben  = st.selectbox("Tipo de Benefício *", ['Aposentadoria por Idade (Urbana)', 'Aposentadoria por Idade da Pessoa com Deficiência', 'Aposentadoria por Idade Rural', 'Aposentadoria por Incapacidade Permanente (Urbana)', 'Aposentadoria por Incapacidade Permanente (Rural)', 'Aposentadoria por Incapacidade Permanente (Acidentária)', 'Aposentadoria por Tempo de Contribuição', 'Aposentadoria por Tempo de Contribuição da Pessoa com Deficiência', 'Aposentadoria por Tempo de Contribuição — Regra de Transição', 'Aposentadoria Especial', 'Aposentadoria Especial — Professor', 'Aposentadoria Especial — Aeronauta', 'Aposentadoria Rural — Segurado Especial', 'Aposentadoria Híbrida', 'Pensão por Morte (Urbana)', 'Pensão por Morte (Rural)', 'Pensão por Morte (Acidentária)', 'Pensão Especial — Síndrome da Talidomida', 'Pensão Especial — Síndrome Congênita do Zika Vírus', 'Auxílio por Incapacidade Temporária — Urbano (antigo Aux. Doença)', 'Auxílio por Incapacidade Temporária — Acidentário', 'Auxílio-Acidente (consignável)', 'Auxílio-Reclusão — Urbano (consignável)', 'Auxílio-Reclusão — Rural (consignável)', 'Auxílio-Inclusão', 'Salário-Maternidade — Urbano', 'Salário-Maternidade — Rural', 'Salário-Família', 'BPC/LOAS — Idoso (cartão consignado; empréstimo com restrições)', 'BPC/LOAS — Pessoa com Deficiência (cartão consignado; empréstimo com restrições)', 'Servidor Público Federal — RPPS', 'Servidor Público Estadual — RPPS', 'Servidor Público Municipal — RPPS', 'Militar das Forças Armadas', 'Policial Militar Estadual', 'Renda Mensal Vitalícia', 'Outro'])
-                tem_2_ben = st.checkbox("Possui mais de um benefício? (ex: aposentado + pensionista)",
-                    help="Cliente pode acumular benefícios, cada um com seu próprio NB")
                 tipo_ben_2 = None
                 if tem_2_ben:
                     _tipos_completos = ["Aposentadoria por Idade (Urbana)","Aposentadoria por Idade da Pessoa com Deficiência","Aposentadoria por Idade Rural","Aposentadoria por Incapacidade Permanente (Urbana)","Aposentadoria por Incapacidade Permanente (Rural)","Aposentadoria por Incapacidade Permanente (Acidentária)","Aposentadoria por Tempo de Contribuição","Aposentadoria por Tempo de Contribuição da Pessoa com Deficiência","Aposentadoria por Tempo de Contribuição — Regra de Transição","Aposentadoria Especial","Aposentadoria Especial — Professor","Aposentadoria Especial — Aeronauta","Aposentadoria Rural — Segurado Especial","Aposentadoria Híbrida","Pensão por Morte (Urbana)","Pensão por Morte (Rural)","Pensão por Morte (Acidentária)","Pensão Especial — Síndrome da Talidomida","Pensão Especial — Síndrome Congênita do Zika Vírus","Auxílio por Incapacidade Temporária — Urbano (antigo Aux. Doença)","Auxílio por Incapacidade Temporária — Acidentário","Auxílio-Acidente (consignável)","Auxílio-Reclusão — Urbano (consignável)","Auxílio-Reclusão — Rural (consignável)","Auxílio-Inclusão","Salário-Maternidade — Urbano","Salário-Maternidade — Rural","Salário-Família","BPC/LOAS — Idoso (cartão consignado; empréstimo com restrições)","BPC/LOAS — Pessoa com Deficiência (cartão consignado; empréstimo com restrições)","Servidor Público Federal — RPPS","Servidor Público Estadual — RPPS","Servidor Público Municipal — RPPS","Militar das Forças Armadas","Policial Militar Estadual","Renda Mensal Vitalícia","Outro"]
@@ -1703,8 +1704,13 @@ elif "Clientes" in menu:
                             else: st.error(f"Erro: {err_e}")
 
                     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-                    if st.button(f"✏️ Editar dados", key=f"edit_btn_{row['id']}"):
-                        st.session_state[f"edit_cli_{row['id']}"] = not st.session_state.get(f"edit_cli_{row['id']}", False)
+                    bcol1, bcol2 = st.columns(2)
+                    with bcol1:
+                        if st.button(f"✏️ Editar dados", key=f"edit_btn_{row['id']}", use_container_width=True):
+                            st.session_state[f"edit_cli_{row['id']}"] = not st.session_state.get(f"edit_cli_{row['id']}", False)
+                    with bcol2:
+                        if st.button("📎 Documentos", key=f"doc_btn_{row['id']}", use_container_width=True):
+                            st.session_state[f"show_docs_{row['id']}"] = not st.session_state.get(f"show_docs_{row['id']}", False)
 
                     if st.session_state.get(f"edit_cli_{row['id']}", False):
                         st.markdown("""
@@ -1757,11 +1763,6 @@ elif "Clientes" in menu:
                                 st.rerun()
 
                         st.markdown('</div>', unsafe_allow_html=True)
-
-                    # ── Upload de documentos direto na tela de Clientes ──────────
-                    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-                    if st.button("📎 Documentos do cliente", key=f"doc_btn_{row['id']}"):
-                        st.session_state[f"show_docs_{row['id']}"] = not st.session_state.get(f"show_docs_{row['id']}", False)
 
                     if st.session_state.get(f"show_docs_{row['id']}", False):
                         st.markdown('<div style="background:#0D1B35;border:1px solid rgba(96,165,250,0.2);border-radius:12px;padding:14px 16px;margin-top:6px">', unsafe_allow_html=True)
