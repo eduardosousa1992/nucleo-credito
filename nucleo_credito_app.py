@@ -1395,22 +1395,46 @@ elif "Clientes" in menu:
     if st.button("＋ Cadastrar Novo Cliente", key="btn_new_cli"):
         st.session_state["show_form_cli"] = not st.session_state.get("show_form_cli", False)
     if st.session_state.get("show_form_cli", False):
+        # ── Inicializa session_state dos campos de endereço (uma única vez) ──
+        for _k, _v in [("addr_rua",""),("addr_bairro",""),("addr_cidade",""),("addr_uf",""),("addr_cep_status",None)]:
+            if _k not in st.session_state:
+                st.session_state[_k] = _v
+
+        def _on_cep_change():
+            """Callback disparado ao alterar o CEP — roda ANTES do rerender,
+            por isso consegue popular session_state a tempo dos campos lerem o valor novo."""
+            cep_digitado = st.session_state.get("cep_cad_outside", "")
+            digitos = re.sub(r'\D', '', cep_digitado or "")
+            if len(digitos) == 8:
+                resultado = buscar_cep(cep_digitado)
+                if resultado:
+                    st.session_state["addr_rua"] = resultado["rua"]
+                    st.session_state["addr_bairro"] = resultado["bairro"]
+                    st.session_state["addr_cidade"] = resultado["cidade"]
+                    st.session_state["addr_uf"] = resultado["uf"]
+                    st.session_state["addr_cep_status"] = "ok"
+                else:
+                    st.session_state["addr_cep_status"] = "nao_encontrado"
+            else:
+                st.session_state["addr_cep_status"] = "incompleto" if cep_digitado else None
+
         cc_out1, cc_out2 = st.columns(2)
         with cc_out1:
             tem_2_ben = st.checkbox("Possui mais de um benefício? (ex: aposentado + pensionista)",
                 help="Cliente pode acumular benefícios, cada um com seu próprio NB", key="tem_2_ben_outside")
         with cc_out2:
-            cep_input = st.text_input("CEP * (digite para buscar o endereço)", placeholder="00000-000", key="cep_cad_outside",
+            cep_input = st.text_input("CEP * (digite para buscar o endereço)", placeholder="00000-000",
+                key="cep_cad_outside", on_change=_on_cep_change,
                 help="Digite o CEP completo (8 números) — o endereço preenche automaticamente abaixo")
 
-        _cep_digits = re.sub(r'\D','',cep_input or "")
-        _end_auto = buscar_cep(cep_input) if len(_cep_digits)==8 else None
-        if _end_auto:
-            st.success(f"✅ CEP localizado: {_end_auto['rua']}, {_end_auto['bairro']} — {_end_auto['cidade']}/{_end_auto['uf']}")
-        elif len(_cep_digits)==8:
+        _status = st.session_state.get("addr_cep_status")
+        if _status == "ok":
+            st.success(f"✅ CEP localizado: {st.session_state['addr_rua']}, {st.session_state['addr_bairro']} — {st.session_state['addr_cidade']}/{st.session_state['addr_uf']}")
+        elif _status == "nao_encontrado":
             st.warning("CEP não encontrado na base — preencha o endereço manualmente abaixo")
-        elif cep_input:
-            st.caption(f"Digite os 8 números do CEP ({len(_cep_digits)}/8)")
+        elif _status == "incompleto":
+            _digitos_atual = re.sub(r'\D', '', st.session_state.get("cep_cad_outside","") or "")
+            st.caption(f"Digite os 8 números do CEP ({len(_digitos_atual)}/8)")
 
         with st.form("form_cli", clear_on_submit=True):
             c1, c2, c3 = st.columns(3)
@@ -1428,19 +1452,18 @@ elif "Clientes" in menu:
                                          format="DD/MM/YYYY")
 
                 st.markdown("<div style='color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:8px 0 4px'>Endereço</div>", unsafe_allow_html=True)
+                # Campos lêem e escrevem diretamente em session_state via key=
+                # (sem value= concorrente) — assim o callback do CEP consegue
+                # atualizá-los antes do form ser desenhado novamente.
                 ce1, ce2 = st.columns(2)
                 with ce1:
-                    end_rua = st.text_input("Rua/Logradouro",
-                        value=_end_auto['rua'] if _end_auto else "", key="end_rua_cad")
-                    end_bairro = st.text_input("Bairro",
-                        value=_end_auto['bairro'] if _end_auto else "", key="end_bairro_cad")
-                    end_cidade = st.text_input("Cidade",
-                        value=_end_auto['cidade'] if _end_auto else "", key="end_cidade_cad")
+                    end_rua = st.text_input("Rua/Logradouro", key="addr_rua")
+                    end_bairro = st.text_input("Bairro", key="addr_bairro")
+                    end_cidade = st.text_input("Cidade", key="addr_cidade")
                 with ce2:
                     end_num = st.text_input("Número", placeholder="123", key="end_num_cad")
                     end_compl = st.text_input("Complemento", placeholder="Apto, casa (opcional)", key="end_compl_cad")
-                    end_uf = st.text_input("UF",
-                        value=_end_auto['uf'] if _end_auto else "", max_chars=2, key="end_uf_cad")
+                    end_uf = st.text_input("UF", max_chars=2, key="addr_uf")
                 end_cidade_uf = f"{end_cidade}/{end_uf}"
 
                 st.markdown("<div style='color:rgba(255,255,255,0.5);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:12px 0 4px'>Número do Benefício (NB)</div>", unsafe_allow_html=True)
@@ -1546,6 +1569,11 @@ elif "Clientes" in menu:
 
                     msg_doc = f" + {docs_enviados} documento(s) anexado(s)" if docs_enviados else ""
                     st.success(f"✅ {nome} cadastrado com sucesso!{msg_doc}")
+
+                    # Limpa os campos de endereço (fora do form) para o próximo cadastro
+                    for _k in ["addr_rua","addr_bairro","addr_cidade","addr_uf","addr_cep_status","cep_cad_outside"]:
+                        if _k in st.session_state:
+                            del st.session_state[_k]
                     st.rerun()
 
     df = load_clientes()
